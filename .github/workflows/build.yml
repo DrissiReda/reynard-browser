@@ -36,7 +36,7 @@ jobs:
     
       - name: Install Xcode 14
         run: |
-          sudo xcodes install 14.3.1
+          sudo xcodes install 14.3.1 --experimental-unxip
           sudo xcodes select 14.3.1
     
       - name: Verify
