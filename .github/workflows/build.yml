@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-12
     outputs:
       artifact: ${{ steps.upload-artifact.outputs.artifact }}
     steps:
@@ -28,10 +28,7 @@ jobs:
         with:
           clean: true
           fetch-depth: 1
-      - name: Change XCode version
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: 13
+
       - name: Checkout Firefox submodule
         run: git submodule update --init --depth 1 --recursive engine/firefox
 
