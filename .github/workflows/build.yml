@@ -30,7 +30,9 @@ jobs:
           fetch-depth: 1
   
       - name: Install xcodes
-        run: brew install xcodesorg/made/xcodes
+        run: |
+          brew uninstall xcodes
+          brew install xcodesorg/made/xcodes
     
       - name: Install Xcode 14
         run: |
