@@ -79,7 +79,7 @@ jobs:
     needs: prepare
     if: ${{ needs.prepare.outputs.should_build == 'true' }}
     name: "${{ matrix.variant == 'standard' && 'Build Standard / TrollStore' || 'Build Jailbroken' }}"
-    runs-on: macos-12
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
@@ -95,6 +95,17 @@ jobs:
           fetch-depth: 1
           submodules: false
           clean: true
+
+      - name: Install xcodes
+        run: brew install xcodesorg/made/xcodes
+
+      - name: Install Xcode 14
+        run: |
+          sudo xcodes install 14.3.1
+          sudo xcodes select 14.3.1
+
+      - name: Verify
+        run: xcodebuild -version
 
       - name: Install build dependencies
         run: |
