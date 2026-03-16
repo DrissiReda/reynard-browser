@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     outputs:
       artifact: ${{ steps.upload-artifact.outputs.artifact }}
     steps:
@@ -35,6 +35,9 @@ jobs:
       - name: Checkout idevice submodule
         run: git submodule update --init --depth 1 --recursive support/idevice
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+    
       - name: Update Gecko
         run: ./tools/development/update-gecko.sh
 
