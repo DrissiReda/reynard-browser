@@ -1,82 +1,231 @@
 diff --git a/mobile/shared/components/extensions/schemas/windows.json b/mobile/shared/components/extensions/schemas/windows.json
 new file mode 100644
-index 0000000..6470a20
+index 0000000..1111111
 --- /dev/null
 +++ b/mobile/shared/components/extensions/schemas/windows.json
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,226 @@
 +[
 +  {
 +    "namespace": "windows",
 +    "description": "Reynard: minimal windows API for GeckoView (one window per tab).",
 +    "properties": {
-+      "WINDOW_ID_NONE": { "value": -1 },
-+      "WINDOW_ID_CURRENT": { "value": -2 }
++      "WINDOW_ID_NONE": {
++        "value": -1
++      },
++      "WINDOW_ID_CURRENT": {
++        "value": -2
++      }
 +    },
 +    "functions": [
 +      {
 +        "name": "get",
 +        "type": "function",
-+        "async": true,
++        "async": "callback",
 +        "parameters": [
-+          { "type": "integer", "name": "windowId", "minimum": -2 },
-+          { "type": "any", "name": "getInfo", "optional": true }
++          {
++            "type": "integer",
++            "name": "windowId",
++            "minimum": -2
++          },
++          {
++            "type": "any",
++            "name": "getInfo",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
 +        ]
 +      },
 +      {
 +        "name": "getCurrent",
 +        "type": "function",
-+        "async": true,
-+        "parameters": [{ "type": "any", "name": "getInfo", "optional": true }]
++        "async": "callback",
++        "parameters": [
++          {
++            "type": "any",
++            "name": "getInfo",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
++        ]
 +      },
 +      {
 +        "name": "getLastFocused",
 +        "type": "function",
-+        "async": true,
-+        "parameters": [{ "type": "any", "name": "getInfo", "optional": true }]
++        "async": "callback",
++        "parameters": [
++          {
++            "type": "any",
++            "name": "getInfo",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
++        ]
 +      },
 +      {
 +        "name": "getAll",
 +        "type": "function",
-+        "async": true,
-+        "parameters": [{ "type": "any", "name": "getInfo", "optional": true }]
++        "async": "callback",
++        "parameters": [
++          {
++            "type": "any",
++            "name": "getInfo",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
++        ]
 +      },
 +      {
 +        "name": "create",
 +        "type": "function",
-+        "async": true,
-+        "parameters": [{ "type": "any", "name": "createData", "optional": true }]
++        "async": "callback",
++        "parameters": [
++          {
++            "type": "any",
++            "name": "createData",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
++        ]
 +      },
 +      {
 +        "name": "update",
 +        "type": "function",
-+        "async": true,
++        "async": "callback",
 +        "parameters": [
-+          { "type": "integer", "name": "windowId", "minimum": -2 },
-+          { "type": "any", "name": "updateInfo", "optional": true }
++          {
++            "type": "integer",
++            "name": "windowId",
++            "minimum": -2
++          },
++          {
++            "type": "any",
++            "name": "updateInfo",
++            "optional": true
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
 +        ]
 +      },
 +      {
 +        "name": "remove",
 +        "type": "function",
-+        "async": true,
-+        "parameters": [{ "type": "integer", "name": "windowId", "minimum": -2 }]
++        "async": "callback",
++        "parameters": [
++          {
++            "type": "integer",
++            "name": "windowId",
++            "minimum": -2
++          },
++          {
++            "type": "function",
++            "name": "callback",
++            "optional": true,
++            "parameters": [
++              {
++                "type": "any",
++                "name": "result",
++                "optional": true
++              }
++            ]
++          }
++        ]
 +      }
 +    ],
 +    "events": [
 +      {
 +        "name": "onCreated",
 +        "type": "function",
-+        "parameters": [{ "type": "any", "name": "window" }]
++        "parameters": [
++          {
++            "type": "any",
++            "name": "window"
++          }
++        ]
 +      },
 +      {
 +        "name": "onRemoved",
 +        "type": "function",
-+        "parameters": [{ "type": "integer", "name": "windowId" }]
++        "parameters": [
++          {
++            "type": "integer",
++            "name": "windowId"
++          }
++        ]
 +      },
 +      {
 +        "name": "onFocusChanged",
 +        "type": "function",
-+        "parameters": [{ "type": "integer", "name": "windowId" }]
++        "parameters": [
++          {
++            "type": "integer",
++            "name": "windowId"
++          }
++        ]
 +      }
 +    ]
 +  }
