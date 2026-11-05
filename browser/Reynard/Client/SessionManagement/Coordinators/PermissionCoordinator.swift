@@ -107,6 +107,9 @@ final class PermissionCoordinator: NSObject, PermissionEmbedderDelegate {
             let action: SitePermissionAction = allowed ? .allowed : .blocked
             permissionStore.scheduleActionUpdate(action, for: sitePermission, host: host, session: session)
             applyPermission(action, to: sitePermission, permission: permission)
+            if allowed, sitePermission == .notification {
+                await WebNotificationManager.shared.requestAuthorization()
+            }
             return action.contentPermissionValue
         }
     }

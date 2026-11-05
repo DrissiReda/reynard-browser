@@ -1,5 +1,5 @@
 diff --git a/js/src/jit/ProcessExecutableMemory.cpp b/js/src/jit/ProcessExecutableMemory.cpp
-index cea7d764ca96..b3ab704c140d 100644
+index cea7d764ca..753e1d1413 100644
 --- a/js/src/jit/ProcessExecutableMemory.cpp
 +++ b/js/src/jit/ProcessExecutableMemory.cpp
 @@ -14,6 +14,14 @@
@@ -17,7 +17,7 @@ index cea7d764ca96..b3ab704c140d 100644
  #include "jsfriendapi.h"
  
  #include "gc/Memory.h"
-@@ -47,6 +55,99 @@
+@@ -47,6 +55,105 @@
  using namespace js;
  using namespace js::jit;
  
@@ -46,9 +46,15 @@ index cea7d764ca96..b3ab704c140d 100644
 +
 +__attribute__((noinline, optnone, naked)) void* RequestDebuggerToPrepareRegion(
 +    void* addr, size_t len) {
++#if defined(__aarch64__)
 +  asm("mov x16, #1 \n"
 +      "brk #0xf00d \n"
 +      "ret");
++#else
++  // Simulator builds (x86_64): no debugger handshake.
++  asm("xor %eax, %eax \n"
++      "ret");
++#endif
 +}
 +
 +static void* WritableAliasForExecutableAddress(void* addr, size_t bytes) {
@@ -117,7 +123,7 @@ index cea7d764ca96..b3ab704c140d 100644
  #ifdef XP_WIN
  #  if defined(HAVE_64BIT_BUILD)
  #    define NEED_JIT_UNWIND_HANDLING
-@@ -463,6 +564,20 @@ static void* ComputeRandomAllocationAddress() {
+@@ -463,6 +570,20 @@ static void* ComputeRandomAllocationAddress() {
  static void DecommitPages(void* addr, size_t bytes);
  
  static void* ReserveProcessExecutableMemory(size_t bytes) {
@@ -138,7 +144,7 @@ index cea7d764ca96..b3ab704c140d 100644
    // On most Unix platforms our strategy is as follows:
    //
    // * Reserve:  mmap with PROT_NONE
-@@ -507,21 +622,22 @@ static void* ReserveProcessExecutableMemory(size_t bytes) {
+@@ -507,21 +628,22 @@ static void* ReserveProcessExecutableMemory(size_t bytes) {
    void* randomAddr = ComputeRandomAllocationAddress();
    unsigned protection = PROT_NONE;
    unsigned flags = MAP_NORESERVE | MAP_PRIVATE | MAP_ANON;
@@ -166,7 +172,7 @@ index cea7d764ca96..b3ab704c140d 100644
  }
  
  static void DeallocateProcessExecutableMemory(void* addr, size_t bytes) {
-@@ -561,8 +677,30 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
+@@ -561,8 +683,30 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
  
  [[nodiscard]] static bool CommitPages(void* addr, size_t bytes,
                                        ProtectionSetting protection) {
@@ -198,7 +204,7 @@ index cea7d764ca96..b3ab704c140d 100644
    int ret;
    do {
      ret = madvise(addr, bytes, MADV_FREE_REUSE);
-@@ -570,14 +708,14 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
+@@ -570,14 +714,14 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
    if (ret != 0) {
      return false;
    }
@@ -216,7 +222,7 @@ index cea7d764ca96..b3ab704c140d 100644
    unsigned flags = ProtectionSettingToFlags(protection);
    void* p = MozTaggedAnonymousMmap(addr, bytes, flags,
                                     MAP_FIXED | MAP_PRIVATE | MAP_ANON, -1, 0,
-@@ -587,28 +725,51 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
+@@ -587,28 +731,51 @@ static unsigned ProtectionSettingToFlags(ProtectionSetting protection) {
    }
    MOZ_RELEASE_ASSERT(p == addr);
    return true;
@@ -272,7 +278,7 @@ index cea7d764ca96..b3ab704c140d 100644
  #  endif
  }
  #endif
-@@ -662,8 +823,8 @@ class PageBitSet {
+@@ -662,8 +829,8 @@ class PageBitSet {
  #endif
  };
  
@@ -283,7 +289,7 @@ index cea7d764ca96..b3ab704c140d 100644
  //
  // This has a number of benefits compared to raw mmap/VirtualAlloc:
  //
-@@ -684,11 +845,12 @@ class ProcessExecutableMemory {
+@@ -684,11 +851,12 @@ class ProcessExecutableMemory {
    static const size_t MaxCodePages =
        MaxCodeBytesPerProcess / ExecutableCodePageSize;
  
@@ -299,7 +305,7 @@ index cea7d764ca96..b3ab704c140d 100644
    // The fields below should only be accessed while we hold the lock.
    Mutex lock_ MOZ_UNANNOTATED;
  
-@@ -702,9 +864,13 @@ class ProcessExecutableMemory {
+@@ -702,9 +870,13 @@ class ProcessExecutableMemory {
    mozilla::Maybe<mozilla::non_crypto::XorShift128PlusRNG> rng_;
    PageBitSet<MaxCodePages> pages_;
  
@@ -313,7 +319,7 @@ index cea7d764ca96..b3ab704c140d 100644
          lock_(mutexid::ProcessExecutableRegion),
          pagesAllocated_(0),
          cursor_(0),
-@@ -717,13 +883,26 @@ class ProcessExecutableMemory {
+@@ -717,13 +889,26 @@ class ProcessExecutableMemory {
      MOZ_RELEASE_ASSERT(HasJitBackend());
      MOZ_RELEASE_ASSERT(gc::SystemPageSize() <= ExecutableCodePageSize);
  
@@ -344,7 +350,7 @@ index cea7d764ca96..b3ab704c140d 100644
      mozilla::Array<uint64_t, 2> seed;
      GenerateXorShift128PlusSeed(seed);
      rng_.emplace(seed[0], seed[1]);
-@@ -734,8 +913,10 @@ class ProcessExecutableMemory {
+@@ -734,8 +919,10 @@ class ProcessExecutableMemory {
  
    bool initialized() const { return base_ != nullptr; }
  
@@ -356,7 +362,7 @@ index cea7d764ca96..b3ab704c140d 100644
      return pagesAllocated_ * ExecutableCodePageSize;
    }
  
-@@ -743,21 +924,34 @@ class ProcessExecutableMemory {
+@@ -743,21 +930,34 @@ class ProcessExecutableMemory {
      MOZ_ASSERT(initialized());
      MOZ_ASSERT(pages_.empty());
      MOZ_ASSERT(pagesAllocated_ == 0);
@@ -396,7 +402,7 @@ index cea7d764ca96..b3ab704c140d 100644
    }
  
    void* allocate(size_t bytes, ProtectionSetting protection,
-@@ -765,6 +959,54 @@ class ProcessExecutableMemory {
+@@ -765,6 +965,54 @@ class ProcessExecutableMemory {
    void deallocate(void* addr, size_t bytes, bool decommit);
  };
  
@@ -451,7 +457,7 @@ index cea7d764ca96..b3ab704c140d 100644
  void* ProcessExecutableMemory::allocate(size_t bytes,
                                          ProtectionSetting protection,
                                          MemCheckKind checkKind) {
-@@ -779,21 +1021,21 @@ void* ProcessExecutableMemory::allocate(size_t bytes,
+@@ -779,21 +1027,21 @@ void* ProcessExecutableMemory::allocate(size_t bytes,
    void* p = nullptr;
    {
      LockGuard<Mutex> guard(lock_);
@@ -478,7 +484,7 @@ index cea7d764ca96..b3ab704c140d 100644
          page = 0;
        }
  
-@@ -815,7 +1057,7 @@ void* ProcessExecutableMemory::allocate(size_t bytes,
+@@ -815,7 +1063,7 @@ void* ProcessExecutableMemory::allocate(size_t bytes,
        }
  
        pagesAllocated_ += numPages;
@@ -487,7 +493,7 @@ index cea7d764ca96..b3ab704c140d 100644
  
        // If we allocated a small number of pages, move cursor_ to the
        // next page. We don't do this for larger allocations to avoid
-@@ -901,9 +1143,22 @@ bool js::jit::InitProcessExecutableMemory() { return execMemory.init(); }
+@@ -901,9 +1149,22 @@ bool js::jit::InitProcessExecutableMemory() { return execMemory.init(); }
  
  void js::jit::ReleaseProcessExecutableMemory() { execMemory.release(); }
  
@@ -511,7 +517,7 @@ index cea7d764ca96..b3ab704c140d 100644
           AlignBytes(execMemory.bytesAllocated(), 0x100000U);
  }
  
-@@ -911,15 +1166,28 @@ bool js::jit::CanLikelyAllocateMoreExecutableMemory() {
+@@ -911,15 +1172,28 @@ bool js::jit::CanLikelyAllocateMoreExecutableMemory() {
    // Use a 8 MB buffer.
    static const size_t BufferSize = 8 * 1024 * 1024;
  
@@ -542,7 +548,7 @@ index cea7d764ca96..b3ab704c140d 100644
  bool js::jit::ReprotectRegion(void* start, size_t size,
                                ProtectionSetting protection,
                                MustFlushICache flushICache) {
-@@ -969,7 +1237,30 @@ bool js::jit::ReprotectRegion(void* start, size_t size,
+@@ -969,7 +1243,30 @@ bool js::jit::ReprotectRegion(void* start, size_t size,
      return true;
    }
  
