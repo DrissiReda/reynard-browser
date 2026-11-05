@@ -427,30 +427,19 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
                   let url = self.tabManager.shareableURL(for: tab) else {
                 return
             }
-            let sourceView = self.browserChrome.sharePopoverSourceView()
-            self.presentShareSheet(
-                items: [url],
-                sourceView: sourceView,
-                sourceRect: sourceView.bounds,
-                applicationActivities: [
-                    BookmarkActivity(url: url),
-                    AddToFavoritesActivity(url: url),
-                    FindInPageActivity(url: url),
-                    PagePrintActivity(session: tab.session, jobName: tab.title)
-                ],
-                onActivityPerformed: { [weak self] activityType in
-                    guard let self else {
-                        return
-                    }
-                    if activityType == BookmarkActivity.identifier {
-                        self.presentBookmarkEditor(addToFavorites: false)
-                    } else if activityType == AddToFavoritesActivity.identifier {
-                        self.presentBookmarkEditor(addToFavorites: true)
-                    } else if activityType == FindInPageActivity.identifier {
-                        self.browserChrome.showActionBar(.findInPage(), animated: true)
+            Task { @MainActor [weak self] in
+                // Like Safari, a PDF is shared as the file so "Save to Files" works.
+                var items: [Any] = [url]
+                if await tab.session.isPDFDocument() {
+                    do {
+                        // pdf.js's GeckoView save actor is not packaged on iOS; fetch the file directly.
+                        items = [try await tab.session.savePDF(from: url.absoluteString)]
+                    } catch {
+                        NSLog("Reynard: PDF share falls back to URL: %@", String(describing: error))
                     }
                 }
-            )
+                self?.presentPageShareSheet(items: items, url: url, tab: tab)
+            }
         }
         browserChrome.onLibrary = { [weak self] in
             self?.presentLibrary()

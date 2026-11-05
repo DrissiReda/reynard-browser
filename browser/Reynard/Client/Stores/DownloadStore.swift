@@ -1016,6 +1016,7 @@ final class DownloadStore: NSObject {
         )
         hasUnviewedCompletedDownloads = true
         postDidChange()
+        postDidComplete(active.destinationURL)
     }
     
     private func updateCapturedProgress(_ active: CapturedDownload, bytesReceived: Int64) {
@@ -1072,6 +1073,7 @@ final class DownloadStore: NSObject {
                 makePersistedEntry(for: active, state: .completed, fileSize: fileSize)
             )
             hasUnviewedCompletedDownloads = true
+            postDidComplete(active.destinationURL)
         } catch {
             try? fileManager.removeItem(at: temporaryLocation)
             storePersistedEntryLocked(
@@ -1139,6 +1141,16 @@ final class DownloadStore: NSObject {
     private func postDidChange() {
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .downloadStoreDidChange, object: self)
+        }
+    }
+    
+    private func postDidComplete(_ fileURL: URL) {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .downloadStoreDidCompleteDownload,
+                object: self,
+                userInfo: ["fileURL": fileURL]
+            )
         }
     }
     

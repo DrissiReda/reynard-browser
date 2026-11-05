@@ -40,6 +40,33 @@ extension BrowserViewController {
         present(activityController, animated: true)
     }
     
+    func presentPageShareSheet(items: [Any], url: URL, tab: Tab) {
+        let sourceView = browserChrome.sharePopoverSourceView()
+        presentShareSheet(
+            items: items,
+            sourceView: sourceView,
+            sourceRect: sourceView.bounds,
+            applicationActivities: [
+                BookmarkActivity(url: url),
+                AddToFavoritesActivity(url: url),
+                FindInPageActivity(url: url),
+                PagePrintActivity(session: tab.session, jobName: tab.title)
+            ],
+            onActivityPerformed: { [weak self] activityType in
+                guard let self else {
+                    return
+                }
+                if activityType == BookmarkActivity.identifier {
+                    self.presentBookmarkEditor(addToFavorites: false)
+                } else if activityType == AddToFavoritesActivity.identifier {
+                    self.presentBookmarkEditor(addToFavorites: true)
+                } else if activityType == FindInPageActivity.identifier {
+                    self.browserChrome.showActionBar(.findInPage(), animated: true)
+                }
+            }
+        )
+    }
+    
     func presentContentModal(_ rootViewController: UIViewController) {
         let navigationController = ContentModalNavigationController(
             rootViewController: rootViewController
