@@ -5,6 +5,7 @@
 //  Created by Minh Ton on 16/6/26.
 //
 
+import PassKit
 import QuickLook
 import UIKit
 
@@ -25,6 +26,13 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
     
     // Like Safari: offer to open or save a finished download right away.
     func downloadsCoordinator(_ coordinator: DownloadsCoordinator, didComplete fileURL: URL) {
+        if ["pkpass", "pkpasses"].contains(fileURL.pathExtension.lowercased()),
+           let data = try? Data(contentsOf: fileURL),
+           let pass = try? PKPass(data: data),
+           let controller = PKAddPassesViewController(pass: pass) {
+            topmostPresenter.present(controller, animated: true)
+            return
+        }
         if UIApplication.shared.topViewController() is UIAlertController { return }
         AlertPresenter.show(
             title: String(format: NSLocalizedString("\"%@\" Downloaded", comment: "File name"), fileURL.lastPathComponent),

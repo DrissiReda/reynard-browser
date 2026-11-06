@@ -296,6 +296,12 @@ extension BrowserViewController: TabManagerDelegate {
         guard let download = DownloadStore.shared.pendingDownload(from: response, session: session) else {
             return false
         }
+        let name = (response.filename ?? URL(string: response.url)?.lastPathComponent ?? "").lowercased()
+        if ["application/vnd.apple.pkpass", "application/vnd.apple.pkpasses"].contains(response.mimeType?.lowercased() ?? "")
+            || name.hasSuffix(".pkpass") || name.hasSuffix(".pkpasses") {
+            download.startHandler()
+            return true
+        }
         return await downloadsCoordinator.confirm(download)
     }
     
