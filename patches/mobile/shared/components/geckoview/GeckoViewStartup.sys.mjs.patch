@@ -1,5 +1,5 @@
 diff --git a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
-index fb883b8efb..e673716360 100644
+index fb883b8efb..b6641c8452 100644
 --- a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 +++ b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 @@ -178,6 +178,11 @@ export class GeckoViewStartup {
@@ -38,7 +38,7 @@ index fb883b8efb..e673716360 100644
          break;
        }
  
-@@ -378,6 +400,80 @@ export class GeckoViewStartup {
+@@ -378,6 +400,92 @@ export class GeckoViewStartup {
  
          Services.obs.addObserver(this, "browser-idle-startup-tasks-finished");
          Services.obs.addObserver(this, "handlersvc-store-initialized");
@@ -74,15 +74,27 @@ index fb883b8efb..e673716360 100644
 +            popup = !!loadInfo.browsingContext?.opener;
 +          } catch {}
 +          channel.suspend();
-+          lazy.EventDispatcher.instance
-+            .sendRequestForResult("Reynard:SOAuthorize", {
-+              url: channel.URI.spec,
-+              headers,
-+              origin: loadInfo.triggeringPrincipal?.originNoSuffix ?? "",
-+              userGesture: loadInfo.hasValidUserGestureActivation,
-+              popup,
-+            })
++          let request;
++          try {
++            request = lazy.EventDispatcher.instance.sendRequestForResult(
++              "Reynard:SOAuthorize",
++              {
++                url: channel.URI.spec,
++                headers,
++                origin: loadInfo.triggeringPrincipal?.originNoSuffix ?? "",
++                userGesture: loadInfo.hasValidUserGestureActivation,
++                popup,
++              }
++            );
++          } catch (e) {
++            channel.resume();
++            throw e;
++          }
++          request
 +            .then(result => {
++              if (channel.canceled) {
++                return; // load went away while the sheet was up
++              }
 +              if (!result?.handled) {
 +                return; // not for AppSSO: load Apple's web page as usual
 +              }
