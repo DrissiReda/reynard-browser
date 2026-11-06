@@ -1,0 +1,24 @@
+diff --git a/toolkit/components/extensions/ExtensionParent.sys.mjs b/toolkit/components/extensions/ExtensionParent.sys.mjs
+index 62db44913f..b50054642f 100644
+--- a/toolkit/components/extensions/ExtensionParent.sys.mjs
++++ b/toolkit/components/extensions/ExtensionParent.sys.mjs
+@@ -14,6 +14,7 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
+ 
+ const lazy = XPCOMUtils.declareLazy({
+   AddonManager: "resource://gre/modules/AddonManager.sys.mjs",
++  AddonSettings: "resource://gre/modules/addons/AddonSettings.sys.mjs",
+   AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
+   BroadcastConduit: "resource://gre/modules/ConduitsParent.sys.mjs",
+   DeferredTask: "resource://gre/modules/DeferredTask.sys.mjs",
+@@ -263,7 +264,10 @@ const ProxyMessenger = {
+ 
+   openNative(nativeApp, sender) {
+     let context = ParentAPIManager.getContext(sender.childId, sender.actor);
+-    if (context.extension.hasPermission("geckoViewAddons")) {
++    if (
++      context.extension.hasPermission("geckoViewAddons") ||
++      lazy.AddonSettings.IS_EMBEDDED
++    ) {
+       return new lazy.GeckoViewConnection(
+         this.getSender(context.extension, sender),
+         sender.actor.browsingContext.top.embedderElement,
