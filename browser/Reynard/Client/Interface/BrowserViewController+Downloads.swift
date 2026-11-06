@@ -25,6 +25,7 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
     
     // Like Safari: offer to open or save a finished download right away.
     func downloadsCoordinator(_ coordinator: DownloadsCoordinator, didComplete fileURL: URL) {
+        if UIApplication.shared.topViewController() is UIAlertController { return }
         AlertPresenter.show(
             title: String(format: NSLocalizedString("\"%@\" Downloaded", comment: "File name"), fileURL.lastPathComponent),
             message: nil,
