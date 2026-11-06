@@ -34,16 +34,9 @@ final class BitwardenSettingsSection: NSObject {
     /// Hidden unless biometrics are available on the device.
     var isAvailable: Bool { BiometricKeyStore.isAvailable }
 
-    var rowCount: Int { 2 }   // [0] enroll/status, [1] view logs
+    var rowCount: Int { 1 }
 
     func cell(at index: Int) -> UITableViewCell {
-        if index == 1 {
-            let cell = SettingsTableViewCell(style: .value1, reuseIdentifier: nil)
-            cell.textLabel?.text = NSLocalizedString("View Logs", comment: "")
-            cell.textLabel?.textColor = .systemBlue
-            cell.accessoryType = .disclosureIndicator
-            return cell
-        }
         let cell = SettingsTableViewCell(style: .value1, reuseIdentifier: nil)
         if let id = enrolledUserId, store.has(account: id) {
             cell.textLabel?.text = NSLocalizedString("Bitwarden Face ID Unlock", comment: "")
@@ -59,10 +52,6 @@ final class BitwardenSettingsSection: NSObject {
     }
 
     func selectRow(at index: Int, from viewController: UIViewController) {
-        if index == 1 {
-            viewController.navigationController?.pushViewController(BitwardenLogViewController(), animated: true)
-            return
-        }
         if let id = enrolledUserId, store.has(account: id) {
             presentRemove(id: id, from: viewController)
         } else {
@@ -106,7 +95,6 @@ final class BitwardenSettingsSection: NSObject {
             do {
                 let enrolled = try await client.enroll(email: email, password: password, deviceId: deviceId)
                 try store.store(enrolled.userKey, account: enrolled.userId)
-                BitwardenLog.add("enrolled userId=\(enrolled.userId) keyLen=\(enrolled.userKey.count)")
                 UserDefaults.standard.set(enrolled.userId, forKey: Defaults.userIdKey)
                 UserDefaults.standard.set(server, forKey: Defaults.serverKey)
                 self.showResult(ok: true, message: NSLocalizedString("Face ID unlock is on. Open Bitwarden and turn on \u{201C}Unlock with biometrics\u{201D}.", comment: ""), from: vc)
