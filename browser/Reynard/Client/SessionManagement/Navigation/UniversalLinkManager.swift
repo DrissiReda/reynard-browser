@@ -57,14 +57,27 @@ final class UniversalLinkManager {
         guard
             Prefs.BrowsingSettings.openLinksInExternalApps,
             !session.isPrivateMode,
-            request.isUserInitiatedNavigation,
-            let url = URL(string: request.uri),
-            URLUtils.isWebURL(url)
+            let url = URL(string: request.uri)
         else {
             return .allow
         }
         
-        if let triggerUri = request.triggerUri,
+        // Custom schemes (tel:, mailto:, ...) and Apple Maps open any app, not just universal links.
+        let internalSchemes: Set<String> = ["http", "https", "about", "data", "blob", "file", "javascript", "moz-extension", "resource", "chrome", "view-source", "reynard"]
+        let scheme = url.scheme?.lowercased() ?? ""
+        let isCustomLink = !internalSchemes.contains(scheme)
+            || (scheme == "https" && url.host == "maps.apple.com")
+        if isCustomLink {
+            guard request.hasUserGesture || request.isUserInitiatedNavigation else {
+                return .allow
+            }
+        } else {
+            guard request.isUserInitiatedNavigation, URLUtils.isWebURL(url) else {
+                return .allow
+            }
+        }
+        
+        if !isCustomLink, let triggerUri = request.triggerUri,
            let triggerURL = URL(string: triggerUri),
            let triggerHost = triggerURL.host,
            let destinationHost = url.host,
@@ -81,7 +94,7 @@ final class UniversalLinkManager {
         }
         
         let task = Task { @MainActor in
-            return await open(url)
+            return await open(url, universalLinksOnly: !isCustomLink)
         }
         handoffTasks[key] = task
         defer { handoffTasks.removeValue(forKey: key) }
@@ -107,7 +120,7 @@ final class UniversalLinkManager {
     }
     
     @MainActor
-    private func open(_ url: URL) async -> Bool {
+    private func open(_ url: URL, universalLinksOnly: Bool) async -> Bool {
         let gate = OpenGate()
         let timeoutTask = Task { @MainActor in
             do {
@@ -123,7 +136,7 @@ final class UniversalLinkManager {
             }
             UIApplication.shared.open(
                 url,
-                options: [.universalLinksOnly: true],
+                options: universalLinksOnly ? [.universalLinksOnly: true] : [:],
                 completionHandler: { success in
                     gate.finish(with: success)
                 }
