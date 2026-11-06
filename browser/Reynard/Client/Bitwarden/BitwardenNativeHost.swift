@@ -27,26 +27,17 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
     /// Shared AES+HMAC secret per extension appId (survives across its messages).
     private var secrets: [String: BitwardenSymmetricKey] = [:]
 
-    private var registered = 0
-    private var loggedPerms = false
     func register(for session: GeckoSession) {
         session.setAddonMessageDelegate(self, extensionID: Self.extensionID, nativeApp: Self.nativeApp)
         // Bitwarden's biometric handshake runs in its background service worker,
         // which has no tab session: connectNative dispatches on the runtime
         // dispatcher, so we must register there too.
         AddonRuntime.shared.setRuntimeAddonMessageDelegate(self, extensionID: Self.extensionID, nativeApp: Self.nativeApp)
-        registered += 1
-        if registered == 1 { BitwardenLog.add("host registered (ext=\(Self.extensionID))") }
-        if !loggedPerms, let bw = AddonRuntime.shared.installedAddons.first(where: { $0.id == Self.extensionID }) {
-            loggedPerms = true
-            BitwardenLog.add("BW perms req=\(bw.metaData.requiredPermissions) optGranted=\(bw.metaData.grantedOptionalPermissions)")
-        }
     }
 
     // MARK: - Port lifecycle
 
     func addonPortDidConnect(_ port: AddonPort) {
-        BitwardenLog.add("port connect from \(port.sender.extensionID)")
         guard port.sender.extensionID == Self.extensionID else { return }
         port.delegate = self
         ports[ObjectIdentifier(port)] = port
@@ -67,7 +58,6 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
 
         // Handshake is plaintext.
         if let m = inner as? [String: Any], (m["command"] as? String) == "setupEncryption" {
-            BitwardenLog.add("setupEncryption appId=\(appId)")
             handleSetupEncryption(m, appId: appId, port: port)
             return
         }
@@ -76,11 +66,9 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
               let pt = enc.decrypt(key: key),
               let payload = (try? JSONSerialization.jsonObject(with: pt)) as? [String: Any] else {
             // No session secret / undecryptable: ask the extension to re-handshake.
-            BitwardenLog.add("decrypt failed appId=\(appId) hasSecret=\(self.secrets[appId] != nil)")
             port.postMessage(["command": "invalidateEncryption", "appId": appId])
             return
         }
-        BitwardenLog.add("cmd=\((payload["command"] as? String) ?? "?") userId=\((payload["userId"] as? String) ?? "nil")")
         handleCommand(payload, appId: appId, key: key, port: port)
     }
 
@@ -112,7 +100,6 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
         switch command {
         case "getBiometricsStatus", "getBiometricsStatusForUser":
             let status = biometricsStatus(userId: userId)
-            BitwardenLog.add("status=\(status) for userId=\(userId ?? "nil"); enrolled=\(BiometricKeyStore.enrolledAccounts())")
             reply(["command": command, "messageId": messageId, "response": status],
                   appId: appId, key: key, port: port)
 

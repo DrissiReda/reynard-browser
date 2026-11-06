@@ -80,9 +80,8 @@ final class AddonCoordinator: NSObject, AddonEmbedderDelegate {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             do {
-                let a = try await AddonRuntime.shared.ensureBuiltIn(location: "resource://app/extensions/bwtest/", id: "{446900e4-71c2-419f-a6a7-df9c091e268b}")
-                BitwardenLog.add("SIM builtin installed \(a.id)")
-            } catch { BitwardenLog.add("SIM install err \(error)") }
+                _ = try await AddonRuntime.shared.ensureBuiltIn(location: "resource://app/extensions/bwtest/", id: "{446900e4-71c2-419f-a6a7-df9c091e268b}")
+            } catch {}
         }
 #endif
     }
@@ -237,7 +236,6 @@ final class AddonCoordinator: NSObject, AddonEmbedderDelegate {
     @MainActor
     func addonController(_ controller: AddonRuntime, promptFor prompt: AddonPermissionPrompt) async -> AddonPermissionPromptResponse {
 #if targetEnvironment(simulator)
-        BitwardenLog.add("SIM auto-approve prompt")
         return AddonPermissionPromptResponse(allow: true)
 #endif
         if let response = AddonImporter.installationResponse(for: prompt) {
