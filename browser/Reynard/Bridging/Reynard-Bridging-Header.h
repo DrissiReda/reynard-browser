@@ -8,6 +8,7 @@
 #ifndef Reynard_Bridging_Header_h
 #define Reynard_Bridging_Header_h
 
+#import "AppleSSOBridge.h"
 #import "ExtensionBridge.h"
 #import "GeckoRuntimeBridge.h"
 #import "JITEnabler.h"
