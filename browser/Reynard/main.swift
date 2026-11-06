@@ -92,12 +92,13 @@ private func clearStartupCacheOnGeckoUpdate() {
     let roots = ["mozilla", Bundle.main.bundleIdentifier ?? "mozilla"].map {
         caches.appendingPathComponent($0, isDirectory: true)
     }
+    var allRemoved = true
     for root in roots {
         guard let walker = fileManager.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
         for case let url as URL in walker {
             switch url.lastPathComponent {
             case "startupCache":
-                try? fileManager.removeItem(at: url)
+                do { try fileManager.removeItem(at: url) } catch { allRemoved = false }
                 walker.skipDescendants()
             case "cache2":
                 walker.skipDescendants() // HTTP cache: many files, never holds it
@@ -106,7 +107,7 @@ private func clearStartupCacheOnGeckoUpdate() {
             }
         }
     }
-    UserDefaults.standard.set(String(buildID), forKey: key)
+    if allRemoved { UserDefaults.standard.set(String(buildID), forKey: key) }
 }
 
 clearStartupCacheOnGeckoUpdate()
