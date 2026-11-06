@@ -114,6 +114,11 @@ final class AdvancedOptionsPreferencesViewController: SettingsTableViewControlle
     // MARK: - Values
     
     private var defaultConfiguration: UserAgentConfiguration {
+        if !Prefs.CompatibilitySettings.useAndroidUserAgent {
+            return userAgentPolicy.safariConfiguration(
+                prefersDesktopMode: Prefs.BrowsingSettings.requestDesktopWebsite
+            )
+        }
         return userAgentPolicy.defaultConfiguration(
             prefersDesktopMode: Prefs.BrowsingSettings.requestDesktopWebsite
         )
