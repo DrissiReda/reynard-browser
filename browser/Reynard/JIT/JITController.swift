@@ -145,7 +145,17 @@ final class JITController {
         guard pid > 0 else {
             return
         }
-        
+
+#if targetEnvironment(simulator)
+        // Simulator processes can map executable memory without a debugger.
+        // Report a pre-iOS 26, non-TXM device so Gecko uses plain mprotect.
+        ReportJITStatusForChild(pid, true, JITRuntimeInfo(
+            hasTXMSupport: 0,
+            deviceOSVersion: DeviceOSVersion(majorVersion: 16, minorVersion: 0, patchVersion: 0)
+        ))
+        return
+#endif
+
         guard !isJITLessModeActive, !hasHandledFailure else {
             ReportJITStatusForChild(pid, false, newJITRuntimeInfo())
             return

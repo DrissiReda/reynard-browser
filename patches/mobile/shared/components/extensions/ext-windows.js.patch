@@ -1,0 +1,173 @@
+diff --git a/mobile/shared/components/extensions/ext-windows.js b/mobile/shared/components/extensions/ext-windows.js
+new file mode 100644
+index 0000000..4679bbf
+--- /dev/null
++++ b/mobile/shared/components/extensions/ext-windows.js
+@@ -0,0 +1,167 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++"use strict";
++
++// Reynard: minimal browser.windows for GeckoView. Every GeckoView tab is its
++// own window, so a window maps 1:1 to a tab and windows.create opens a tab.
++// Enough for extensions (e.g. Bitwarden passkeys) that open a "popout" window.
++
++ChromeUtils.defineESModuleGetters(this, {
++  GeckoViewTabBridge: "resource://gre/modules/GeckoViewTab.sys.mjs",
++  mobileWindowTracker: "resource://gre/modules/GeckoViewWebExtension.sys.mjs",
++});
++
++this.windows = class extends ExtensionAPI {
++  getAPI(context) {
++    const { extension } = context;
++    const { windowManager } = extension;
++
++    const convert = (window, getInfo) =>
++      windowManager.getWrapper(window).convert(getInfo ?? undefined);
++
++    const getWindow = windowId => {
++      const window = windowTracker.getWindow(windowId, context, false);
++      if (!window) {
++        throw new ExtensionError(`Invalid window ID: ${windowId}`);
++      }
++      return window;
++    };
++
++    const loadURI = (nativeTab, url) => {
++      let principal = context.principal;
++      let loadFlags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
++      const isAboutUrl = url.startsWith("about:");
++      if (
++        isAboutUrl ||
++        (ExtensionUtils.isExtensionUrl(url) &&
++          !context.checkLoadURL(url, { dontReportErrors: true }))
++      ) {
++        principal =
++          Services.scriptSecurityManager.getLoadContextContentPrincipal(
++            Services.io.newURI(url),
++            nativeTab.browser.loadContext
++          );
++      }
++      if (isAboutUrl) {
++        loadFlags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_PRINCIPAL;
++      }
++      nativeTab.browser.fixupAndLoadURIString(url, {
++        loadFlags,
++        triggeringPrincipal: principal,
++      });
++    };
++
++    return {
++      windows: {
++        onCreated: new EventManager({
++          context,
++          name: "windows.onCreated",
++          register: fire => {
++            const listener = window => {
++              if (windowManager.canAccessWindow(window, context)) {
++                fire.async(convert(window));
++              }
++            };
++            windowTracker.addOpenListener(listener);
++            return () => windowTracker.removeOpenListener(listener);
++          },
++        }).api(),
++
++        onRemoved: new EventManager({
++          context,
++          name: "windows.onRemoved",
++          register: fire => {
++            const listener = window => {
++              if (windowManager.canAccessWindow(window, context)) {
++                fire.async(windowTracker.getId(window));
++              }
++            };
++            windowTracker.addCloseListener(listener);
++            return () => windowTracker.removeCloseListener(listener);
++          },
++        }).api(),
++
++        onFocusChanged: new EventManager({
++          context,
++          name: "windows.onFocusChanged",
++          register: fire => {
++            const listener = (eventName, { windowId }) => fire.async(windowId);
++            mobileWindowTracker.on("tab-activated", listener);
++            return () => mobileWindowTracker.off("tab-activated", listener);
++          },
++        }).api(),
++
++        async get(windowId, getInfo) {
++          return convert(getWindow(windowId), getInfo);
++        },
++
++        async getCurrent(getInfo) {
++          return convert(getWindow(WindowBase.WINDOW_ID_CURRENT), getInfo);
++        },
++
++        async getLastFocused(getInfo) {
++          const window = windowTracker.topWindow;
++          if (!window) {
++            throw new ExtensionError("No window");
++          }
++          return convert(window, getInfo);
++        },
++
++        async getAll(getInfo) {
++          return Array.from(windowManager.getAll(context), win =>
++            win.convert(getInfo ?? undefined)
++          );
++        },
++
++        async create(createData) {
++          let url = createData?.url;
++          if (Array.isArray(url)) {
++            url = url[0];
++          }
++          url = url == null ? "about:blank" : context.uri.resolve(url);
++          if (
++            !ExtensionUtils.isExtensionUrl(url) &&
++            !context.checkLoadURL(url, { dontReportErrors: true })
++          ) {
++            throw new ExtensionError(`Illegal URL: ${url}`);
++          }
++
++          const nativeTab = await GeckoViewTabBridge.createNewTab({
++            extensionId: extension.id,
++            createProperties: { active: true, url },
++          });
++          loadURI(nativeTab, url);
++          tabTracker.addTabReadyBlocker(nativeTab);
++
++          const window = nativeTab.browser.documentGlobal;
++          mobileWindowTracker.setTabActive(window, true);
++          return convert(window, { populate: true });
++        },
++
++        async update(windowId, updateInfo) {
++          const window = getWindow(windowId);
++          if (updateInfo?.focused || updateInfo?.drawAttention) {
++            // Reynard only lets extensions update their own tabs; focusing a
++            // regular tab is denied, which is fine for a best-effort focus.
++            await GeckoViewTabBridge.updateTab({
++              window,
++              extensionId: extension.id,
++              updateProperties: { active: true },
++            }).catch(() => {});
++            mobileWindowTracker.setTabActive(window, true);
++          }
++          return convert(window);
++        },
++
++        async remove(windowId) {
++          await GeckoViewTabBridge.closeTab({
++            window: getWindow(windowId),
++            extensionId: extension.id,
++          });
++        },
++      },
++    };
++  }
++};

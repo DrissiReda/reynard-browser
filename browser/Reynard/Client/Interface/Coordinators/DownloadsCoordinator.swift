@@ -12,6 +12,7 @@ protocol DownloadsCoordinatorDelegate: AnyObject {
     
     func downloadsCoordinator(_ coordinator: DownloadsCoordinator, didUpdate summary: DownloadStoreSummary)
     func downloadsCoordinatorDidRequestLayoutRefresh(_ coordinator: DownloadsCoordinator)
+    func downloadsCoordinator(_ coordinator: DownloadsCoordinator, didComplete fileURL: URL)
 }
 
 final class DownloadsCoordinator {
@@ -24,6 +25,7 @@ final class DownloadsCoordinator {
     private var confirmationQueue: [ConfirmationRequest] = []
     private var isShowingConfirmationAlert = false
     private var storeObserver: NSObjectProtocol?
+    private var completionObserver: NSObjectProtocol?
     
     init(delegate: DownloadsCoordinatorDelegate) {
         self.delegate = delegate
@@ -32,6 +34,9 @@ final class DownloadsCoordinator {
     deinit {
         if let storeObserver {
             NotificationCenter.default.removeObserver(storeObserver)
+        }
+        if let completionObserver {
+            NotificationCenter.default.removeObserver(completionObserver)
         }
     }
     
@@ -46,6 +51,16 @@ final class DownloadsCoordinator {
             queue: .main
         ) { [weak self] _ in
             self?.syncToolbarButtonState()
+        }
+        completionObserver = NotificationCenter.default.addObserver(
+            forName: .downloadStoreDidCompleteDownload,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self, let fileURL = notification.userInfo?["fileURL"] as? URL else {
+                return
+            }
+            self.delegate?.downloadsCoordinator(self, didComplete: fileURL)
         }
     }
     

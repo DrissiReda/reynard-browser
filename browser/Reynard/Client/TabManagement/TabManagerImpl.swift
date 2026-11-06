@@ -54,6 +54,8 @@ final class TabManagerImplementation: NSObject, TabManager {
         onPromptFinished: requestContentKeyboardFocus
     )
     private(set) lazy var readerMode = ReaderModeController(delegate: self)
+    /// Native-messaging host for the Bitwarden extension's Face ID unlock.
+    private let bitwardenHost = BitwardenNativeHost()
     private lazy var systemMediaSession = SystemMediaSession(playbackObserver: self)
     
     private weak var delegate: TabManagerDelegate?
@@ -716,6 +718,7 @@ final class TabManagerImplementation: NSObject, TabManager {
         let mode: TabMode = isPrivate ? .private : .regular
         sessionManager.adopt(session, asTab: tab.id, url: url, delegates: sessionDelegates)
         readerMode.registerMessageHandlers(for: session)
+        bitwardenHost.register(for: session)
         applyTransferredState(to: tab, url: url, title: title)
         recordNavigation(url, for: tab)
         
@@ -1244,6 +1247,7 @@ final class TabManagerImplementation: NSObject, TabManager {
             delegates: sessionDelegates
         )
         readerMode.registerMessageHandlers(for: session)
+        bitwardenHost.register(for: session)
         return session
     }
 }
@@ -1400,6 +1404,7 @@ extension TabManagerImplementation: ContentDelegate {
         }
         
         let tab = tabs(for: location.mode)[location.index]
+        tab.webAppManifest = manifest as? [String: Any]
         let tabID = tab.id
         let expectedURL = url.absoluteString
         cancelFaviconTask(for: tabID)

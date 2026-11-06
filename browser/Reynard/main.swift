@@ -73,6 +73,43 @@ private func configureSandboxExtension() {
     setenv("MOZ_DOCUMENTS_SANDBOX_EXTENSION", tokenString, 1)
 }
 
+// Gecko caches extension API schemas in the profile's startupCache. Make sure a
+// new Gecko build never runs with schemas cached by the previous one.
+private func clearStartupCacheOnGeckoUpdate() {
+    let ini = Bundle.main.bundleURL
+        .appendingPathComponent("Frameworks/GeckoView.framework/Frameworks/platform.ini")
+    guard let text = try? String(contentsOf: ini, encoding: .utf8),
+          let buildID = text.split(separator: "\n").first(where: { $0.hasPrefix("BuildID=") }) else {
+        return
+    }
+    let key = "lastGeckoBuildID"
+    guard UserDefaults.standard.string(forKey: key) != String(buildID) else { return }
+
+    let fileManager = FileManager.default
+    guard let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+    // Gecko's local profile dirs: Caches/mozilla (default) and
+    // Caches/<bundle id>/.mozilla (unsandboxed iOS 13).
+    let roots = ["mozilla", Bundle.main.bundleIdentifier ?? "mozilla"].map {
+        caches.appendingPathComponent($0, isDirectory: true)
+    }
+    for root in roots {
+        guard let walker = fileManager.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
+        for case let url as URL in walker {
+            switch url.lastPathComponent {
+            case "startupCache":
+                try? fileManager.removeItem(at: url)
+                walker.skipDescendants()
+            case "cache2":
+                walker.skipDescendants() // HTTP cache: many files, never holds it
+            default:
+                break
+            }
+        }
+    }
+    UserDefaults.standard.set(String(buildID), forKey: key)
+}
+
+clearStartupCacheOnGeckoUpdate()
 LocalizationBundle.activate()
 JITController.shared.start()
 

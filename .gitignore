@@ -19,3 +19,7 @@ research/
 # Build artifacts
 dist/
 browser/Reynard/JIT/RPPairing/libidevice_ffi.a
+dist-sim/
+dist_sim.xcconfig
+bwtest.xpi
+admin/
