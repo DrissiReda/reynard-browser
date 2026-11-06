@@ -1585,6 +1585,14 @@ extension TabManagerImplementation: NavigationDelegate {
     }
     
     func onLoadRequest(session: GeckoSession, request: LoadRequest) async -> AllowOrDeny {
+        if (request.hasUserGesture || request.isUserInitiatedNavigation),
+           let url = URL(string: request.uri), let scheme = url.scheme?.lowercased() {
+            let internalSchemes: Set<String> = ["http", "https", "about", "data", "blob", "file", "javascript", "moz-extension", "resource", "chrome", "view-source", "reynard"]
+            if !internalSchemes.contains(scheme) || (scheme == "https" && url.host == "maps.apple.com") {
+                await MainActor.run { UIApplication.shared.open(url) }
+                return .deny
+            }
+        }
         return await sessionManager.universalLinkManager.decideHandoff(for: request, in: session)
     }
     
