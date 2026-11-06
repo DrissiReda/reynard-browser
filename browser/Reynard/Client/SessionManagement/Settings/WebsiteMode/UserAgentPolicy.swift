@@ -20,6 +20,9 @@ struct UserAgentConfiguration {
 }
 
 struct UserAgentPolicy {
+    static let safariMobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
+    static let safariDesktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+    
     // MARK: - Policy Resolution
     
     func configuration(for url: String, prefersDesktopMode: Bool) -> UserAgentConfiguration {
@@ -59,10 +62,12 @@ struct UserAgentPolicy {
         } ?? false)
         
         guard usesAndroidUserAgent else {
+            let ua = prefersDesktopMode ? Self.safariDesktopUserAgent : Self.safariMobileUserAgent
+            let platform = prefersDesktopMode ? "MacIntel" : "iPhone"
             return UserAgentConfiguration(
-                override: nil,
-                platformOverride: nil,
-                appVersionOverride: nil,
+                override: ua,
+                platformOverride: platform,
+                appVersionOverride: String(ua.dropFirst("Mozilla/".count)),
                 oscpuOverride: nil,
                 buildIDOverride: nil,
                 forcesMobileMode: false
