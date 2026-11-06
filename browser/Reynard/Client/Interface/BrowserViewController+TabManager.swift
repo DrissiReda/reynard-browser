@@ -299,7 +299,7 @@ extension BrowserViewController: TabManagerDelegate {
         let name = (response.filename ?? URL(string: response.url)?.lastPathComponent ?? "").lowercased()
         if ["application/vnd.apple.pkpass", "application/vnd.apple.pkpasses"].contains(response.mimeType?.lowercased() ?? "")
             || name.hasSuffix(".pkpass") || name.hasSuffix(".pkpasses") {
-            download.startHandler()
+            _ = DownloadStore.shared.startDownload(download)
             return true
         }
         return await downloadsCoordinator.confirm(download)
