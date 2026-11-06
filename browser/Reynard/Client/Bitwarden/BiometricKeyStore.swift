@@ -22,21 +22,6 @@ struct BiometricKeyStore {
     static let service = "com.minh-ton.Reynard.bitwarden.userkey"
     private var service: String { Self.service }
 
-    /// Account ids with a stored key, without prompting Face ID (diagnostics).
-    static func enrolledAccounts() -> [String] {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecMatchLimit as String: kSecMatchLimitAll,
-            kSecReturnAttributes as String: true,
-            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail,
-        ]
-        var out: CFTypeRef?
-        SecItemCopyMatching(query as CFDictionary, &out)
-        let items = (out as? [[String: Any]]) ?? []
-        return items.compactMap { $0[kSecAttrAccount as String] as? String }
-    }
-
     /// Biometrics present and usable right now.
     static var isAvailable: Bool {
         var err: NSError?
@@ -50,17 +35,26 @@ struct BiometricKeyStore {
             nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .biometryCurrentSet, nil
         ) else { throw BiometricKeyStoreError.unavailable }
 
-        try? delete(account: account)
-        let attrs: [String: Any] = [
+        let match: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: key,
-            kSecAttrAccessControl as String: ac,
-            // Write must not trigger the biometric UI; supply an evaluated-free context.
-            kSecUseAuthenticationContext as String: { let c = LAContext(); c.interactionNotAllowed = true; return c }(),
         ]
-        let status = SecItemAdd(attrs as CFDictionary, nil)
+        // Add first (update if present); never delete before the write succeeds.
+        var attrs = match
+        attrs[kSecValueData as String] = key
+        attrs[kSecAttrAccessControl as String] = ac
+        // Write must not trigger the biometric UI; supply an evaluated-free context.
+        attrs[kSecUseAuthenticationContext as String] = { let c = LAContext(); c.interactionNotAllowed = true; return c }()
+        var status = SecItemAdd(attrs as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            // Same (service, account) already exists: replace its value atomically.
+            // SecItemUpdate keeps the old item if the update fails.
+            status = SecItemUpdate(match as CFDictionary, [
+                kSecValueData as String: key,
+                kSecAttrAccessControl as String: ac,
+            ] as CFDictionary)
+        }
         guard status == errSecSuccess else { throw BiometricKeyStoreError.keychain(status) }
     }
 
