@@ -83,6 +83,7 @@ struct BitwardenEncString {
     }
 
     static func aesCBC(_ input: Data, key: Data, iv: Data, encrypt: Bool) -> Data? {
+        guard iv.count == kCCBlockSizeAES128, [16, 24, 32].contains(key.count) else { return nil }
         let op = CCOperation(encrypt ? kCCEncrypt : kCCDecrypt)
         let outCap = input.count + kCCBlockSizeAES128
         var out = Data(count: outCap)
