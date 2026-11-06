@@ -1,9 +1,9 @@
 diff --git a/mobile/shared/modules/geckoview/FormFieldClassifier.sys.mjs b/mobile/shared/modules/geckoview/FormFieldClassifier.sys.mjs
 new file mode 100644
-index 000000000000..a23b41fc1128
+index 000000000000..70bbac3cff49
 --- /dev/null
 +++ b/mobile/shared/modules/geckoview/FormFieldClassifier.sys.mjs
-@@ -0,0 +1,1317 @@
+@@ -0,0 +1,1412 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1320,4 +1320,99 @@ index 000000000000..a23b41fc1128
 +  }
 +
 +  return false;
++}
++
++// Slice of the flat address-book group between two known entries, inclusive.
++function labelBlock(from, to) {
++  const start = addressBookLabels.indexOf(from);
++  return addressBookLabels.slice(start, addressBookLabels.indexOf(to, start) + 1);
++}
++
++// Order matters: the first matching type wins, specific before generic.
++const contactMatchers = [
++  ["email", emailLabels],
++  ["tel", labelBlock("晚上電話", "pagerphone")],
++  ["postal-code", labelBlock("郵遞區號", "zip")],
++  ["country-name", labelBlock("國家或地區", "country")],
++  ["address-level1", labelBlock("省", "state")],
++  ["address-level2", labelBlock("縣∕市", "city")],
++  ["address-line1", labelBlock("详细地址", "street")],
++  ["organization", labelBlock("機關", "organization")],
++  ["family-name", labelBlock("姓氏", "last")],
++  ["given-name", labelBlock("ім’я", "first")],
++  ["name", labelBlock("姓名", "fullname")],
++].map(([type, labels]) => [type, [new FieldPatternMatcher(labels)]]);
++
++// Keyword lists have no "address line 2" group.
++const ADDRESS_LINE2 = /\b(?:(?:address|addr|adresse|street|line)\s*(?:2|two)|apt|apartment|suite|unit|flat)\b/i;
++
++const contactGuessCache = new WeakMap();
++
++/*
++ * Guess the autocomplete token of a text field that has none, from its
++ * name/id/label/placeholder, like Safari. Called on focus only; cached per
++ * element. Returns "" for credential, search and one-time-code fields.
++ * ponytail: keyword match, not Gecko FormAutofillHeuristics (needs iOS pref
++ * glue and section classification); stale if labels change after first focus.
++ */
++export function guessSafariContactFieldType(element) {
++  if (!isAutoFillableTextControl(element) || !isInput(element)) {
++    return "";
++  }
++  if (contactGuessCache.has(element)) {
++    return contactGuessCache.get(element);
++  }
++  let guess = "";
++  try {
++    guess = computeContactGuess(element);
++  } catch {}
++  contactGuessCache.set(element, guess);
++  return guess;
++}
++
++function computeContactGuess(element) {
++  if (!["text", "tel", "number"].includes(element.type)) {
++    return "";
++  }
++  const tokens = autocompleteTokens(element);
++  if (tokens) {
++    return "";
++  }
++  const form = logicalFormForControl(element);
++  for (const key of [
++    "username",
++    "password",
++    "search",
++    "oneTimeCode",
++    "ignoredData",
++  ]) {
++    if (matchesElement(element, matchers[key], form, true)) {
++      return "";
++    }
++  }
++  if (
++    looksLikeSafariOneTimeCodeField(element) ||
++    looksLikeSafariStandaloneLoginField(element)
++  ) {
++    return "";
++  }
++  if (looksLikeCardNumber(element, tokens, form)) {
++    return "cc-number";
++  }
++  if (element.type == "text" && matchesElement(element, matchers.cardholder, form)) {
++    return "cc-name";
++  }
++  if (
++    directElementStrings(element, form)
++      .concat(element.placeholder, element.getAttribute("aria-label"))
++      .some(value => value && ADDRESS_LINE2.test(value.replace(/[_.-]/g, " ")))
++  ) {
++    return "address-line2";
++  }
++  for (const [type, list] of contactMatchers) {
++    if (matchesElement(element, list, form, true)) {
++      return type;
++    }
++  }
++  return "";
 +}
