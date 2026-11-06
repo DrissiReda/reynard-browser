@@ -9,7 +9,6 @@ import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
-    private var webAppLaunchPending = false
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -62,14 +61,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     func sceneWillEnterForeground(_ scene: UIScene) {
-        let browserViewController = window?.rootViewController as? BrowserViewController
-        browserViewController?.sessionManager.setApplicationForeground(true)
-        // Opened from Reynard's own icon: back to the browser. A web clip
-        // launch re-enters web app mode in scene(_:openURLContexts:).
-        if !webAppLaunchPending {
-            browserViewController?.isStandalone = false
-        }
-        webAppLaunchPending = false
+        (window?.rootViewController as? BrowserViewController)?
+            .sessionManager.setApplicationForeground(true)
     }
     
     func sceneDidEnterBackground(_ scene: UIScene) {
@@ -90,16 +83,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
         
-        let isWebApp = incomingURL.scheme?.lowercased() == "reynard" && incomingURL.host == "app"
-        webAppLaunchPending = isWebApp
         DispatchQueue.main.async {
             browserViewController.loadViewIfNeeded()
             browserViewController.sidebarCoordinator.loadContentIfNeeded()
-            if isWebApp {
-                browserViewController.openWebApp(resolvedURL)
-            } else {
-                browserViewController.sidebarCoordinator.openExternalURL(resolvedURL)
-            }
+            browserViewController.sidebarCoordinator.openExternalURL(resolvedURL)
         }
     }
     
