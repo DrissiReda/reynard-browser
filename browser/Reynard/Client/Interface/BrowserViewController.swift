@@ -86,6 +86,15 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         }
     }
     
+    /// Web app mode (launched from a home screen web clip): browser chrome hidden.
+    var isStandalone = false {
+        didSet {
+            guard isStandalone != oldValue else { return }
+            updateBrowserLayout(animated: false)
+            view.setNeedsLayout()
+        }
+    }
+    
     // MARK: - Lifecycle
     
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -225,7 +234,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         let showsHomepage = tabManager.selectedTab.map(homepageOverlayCoordinator.isHomepageTab) ?? false
         toolbarController.updateLayout(
             chromeMode: browserLayout.chromeMode,
-            isToolbarEnabled: !isShowingFullscreenMedia,
+            isToolbarEnabled: !isShowingFullscreenMedia && !isStandalone,
             extendsContentBehindToolbar: showsHomepage
         )
         homepageOverlayCoordinator.updateVisibleContentInsets()
@@ -427,30 +436,19 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
                   let url = self.tabManager.shareableURL(for: tab) else {
                 return
             }
-            let sourceView = self.browserChrome.sharePopoverSourceView()
-            self.presentShareSheet(
-                items: [url],
-                sourceView: sourceView,
-                sourceRect: sourceView.bounds,
-                applicationActivities: [
-                    BookmarkActivity(url: url),
-                    AddToFavoritesActivity(url: url),
-                    FindInPageActivity(url: url),
-                    PagePrintActivity(session: tab.session, jobName: tab.title)
-                ],
-                onActivityPerformed: { [weak self] activityType in
-                    guard let self else {
-                        return
-                    }
-                    if activityType == BookmarkActivity.identifier {
-                        self.presentBookmarkEditor(addToFavorites: false)
-                    } else if activityType == AddToFavoritesActivity.identifier {
-                        self.presentBookmarkEditor(addToFavorites: true)
-                    } else if activityType == FindInPageActivity.identifier {
-                        self.browserChrome.showActionBar(.findInPage(), animated: true)
+            Task { @MainActor [weak self] in
+                // Like Safari, a PDF is shared as the file so "Save to Files" works.
+                var items: [Any] = [url]
+                if await tab.session.isPDFDocument() {
+                    do {
+                        // pdf.js's GeckoView save actor is not packaged on iOS; fetch the file directly.
+                        items = [try await tab.session.savePDF(from: url.absoluteString)]
+                    } catch {
+                        NSLog("Reynard: PDF share falls back to URL: %@", String(describing: error))
                     }
                 }
-            )
+                self?.presentPageShareSheet(items: items, url: url, tab: tab)
+            }
         }
         browserChrome.onLibrary = { [weak self] in
             self?.presentLibrary()
@@ -577,6 +575,14 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     func applyBrowserLayout(animated: Bool = false) {
         if isShowingFullscreenMedia {
             applyFullscreenLayout()
+        } else if isStandalone {
+            // .standard keeps the page background behind the status bar (.fullscreen is black, for video).
+            contentView.applyLayout(
+                ContentView.LayoutState(mode: .standard),
+                topAnchor: view.safeAreaLayoutGuide.topAnchor,
+                bottomAnchor: view.bottomAnchor
+            )
+            tabBar.setVisibility(.hidden, animated: false)
         } else {
             switch browserLayout.chromeMode {
             case .phone:
@@ -662,13 +668,13 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     }
     
     private func applyBrowserChromeLayout(animated: Bool) {
-        let searchState = isShowingFullscreenMedia
+        let searchState = isShowingFullscreenMedia || isStandalone
         ? BrowserChrome.SearchState.inactive
         : (overlayCoordinator.chromeStateForAddressBarScrollDismissal(layout: browserLayout) ?? searchOverlayCoordinator.chromeState)
         browserChrome.apply(state: BrowserChrome.State(
             position: browserLayout.chromePosition,
             mode: browserLayout.chromeMode,
-            presentation: isShowingFullscreenMedia
+            presentation: isShowingFullscreenMedia || isStandalone
             ? .fullscreenMedia
             : (tabOverview.isPresented ? .tabOverview : .browsing),
             search: searchState,

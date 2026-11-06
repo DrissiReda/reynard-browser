@@ -439,6 +439,15 @@ public class GeckoSession {
     
     // MARK: - Printing
     
+    /// Whether the page is a PDF shown in Gecko's built-in viewer.
+    @MainActor
+    public func isPDFDocument() async -> Bool {
+        guard let response = try? await dispatcher.query(type: "GeckoView:IsPdfJs") else {
+            return false
+        }
+        return PayloadValue.bool(response) == true
+    }
+    
     @MainActor
     public func printToPDF(browsingContextId: Int64? = nil) async throws -> URL {
         guard let window else {
@@ -482,6 +491,26 @@ public class GeckoSession {
         }
     }
     
+    /// Downloads the PDF at `sourceURL` through Gecko's network stack (shares its cookies and cache).
+    @MainActor
+    public func savePDF(from sourceURL: String) async throws -> URL {
+        guard let window else { throw GeckoHandlerError("session window is unavailable") }
+        let tempURL = try await savePDFDocument(from: sourceURL, using: window)
+        // Give the file its real name so Files and the share sheet show it.
+        var name = URL(string: sourceURL)?.lastPathComponent ?? ""
+        if name.isEmpty || name == "/" { name = "document.pdf" }
+        if !name.lowercased().hasSuffix(".pdf") { name += ".pdf" }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let named = dir.appendingPathComponent(name)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(at: tempURL, to: named)
+            return named
+        } catch {
+            return tempURL
+        }
+    }
+
     @MainActor
     private func savePDFDocument(
         from sourceURL: String,

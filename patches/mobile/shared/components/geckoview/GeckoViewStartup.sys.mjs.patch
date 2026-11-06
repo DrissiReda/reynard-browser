@@ -1,5 +1,5 @@
 diff --git a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
-index fb883b8efb99..dbf551be4ba5 100644
+index fb883b8efb..4be03470a2 100644
 --- a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 +++ b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 @@ -178,6 +178,11 @@ export class GeckoViewStartup {
@@ -38,7 +38,7 @@ index fb883b8efb99..dbf551be4ba5 100644
          break;
        }
  
-@@ -378,6 +400,12 @@ export class GeckoViewStartup {
+@@ -378,6 +400,24 @@ export class GeckoViewStartup {
  
          Services.obs.addObserver(this, "browser-idle-startup-tasks-finished");
          Services.obs.addObserver(this, "handlersvc-store-initialized");
@@ -48,6 +48,18 @@ index fb883b8efb99..dbf551be4ba5 100644
 +          () => lazy.DoHController.init(),
 +          "geckoview-initial-foreground"
 +        );
++        // Reynard: start Gecko's own Web Push client (autopush WebSocket) on iOS.
++        if (Services.appinfo.widgetToolkit == "uikit") {
++          Services.obs.addObserver(() => {
++            try {
++              Cc["@mozilla.org/push/Service;1"]
++                .getService(Ci.nsIPushService)
++                .wrappedJSObject.ensureReady();
++            } catch (e) {
++              console.error("Reynard: push service failed to start", e);
++            }
++          }, "geckoview-initial-foreground");
++        }
          Services.obs.addObserver(
            this,
            "network:request-local-network-permission"

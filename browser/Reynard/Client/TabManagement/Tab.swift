@@ -16,6 +16,8 @@ final class Tab {
     let createdAt: Date?
     var isPrivate: Bool
     var favicon: UIImage?
+    /// Last web app manifest Gecko reported for the page.
+    var webAppManifest: [String: Any]?
     var thumbnail: UIImage?
     var isMuted: Bool
     let state = TabSessionState()
