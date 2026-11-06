@@ -396,7 +396,7 @@ final class BookmarksViewController: UIViewController, UITableViewDataSource, UI
         
         let urls: [URL]
         let copyTitle: String
-        let openTitle: String
+        let openTitle: String?
         let canDelete: Bool
         
         switch item {
@@ -408,7 +408,7 @@ final class BookmarksViewController: UIViewController, UITableViewDataSource, UI
         case let .folder(folder):
             urls = bookmarkURLs(in: folder.guid)
             copyTitle = NSLocalizedString("Copy Contents", comment: "")
-            openTitle = NSLocalizedString("Open in New Tabs", comment: "")
+            openTitle = nil
             canDelete = !folder.isProtected
         }
         
@@ -421,7 +421,7 @@ final class BookmarksViewController: UIViewController, UITableViewDataSource, UI
             }
             
             let open = UIAction(
-                title: openTitle,
+                title: openTitle ?? "",
                 image: UIImage(named: "reynard.plus.square.on.square")
             ) { [weak self] _ in
                 guard let self,
@@ -477,9 +477,11 @@ final class BookmarksViewController: UIViewController, UITableViewDataSource, UI
                 })
             }
             
-            return UIMenu(title: "", children: [
-                UIMenu(title: "", options: .displayInline, children: [copy]),
-                UIMenu(title: "", options: .displayInline, children: [open]),
+            var sections = [UIMenu(title: "", options: .displayInline, children: [copy])]
+            if openTitle != nil {
+                sections.append(UIMenu(title: "", options: .displayInline, children: [open]))
+            }
+            return UIMenu(title: "", children: sections + [
                 UIMenu(title: "", options: .displayInline, children: actions),
             ])
         }

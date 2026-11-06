@@ -19040,16 +19040,6 @@
         }
       }
     },
-    "Open in New Tabs" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open in New Tabs"
-          }
-        }
-      }
-    },
     "Open Link in New Private Tab" : {
       "localizations" : {
         "cs" : {
