@@ -54,15 +54,14 @@ enum RuntimePreferences {
             "dom.webnotifications.enabled": false
         ])
         
-        // Battery: no speculative network work, telemetry or WebGPU
+        // Battery: no speculative network work, or telemetry
         GeckoRuntime.setDefaultPrefs([
             "network.dns.disablePrefetch": true,
             "network.prefetch-next": false,
             "network.http.speculative-parallel-limit": 0,
             "network.connectivity-service.enabled": false,
             "toolkit.telemetry.enabled": false,
-            "datareporting.policy.dataSubmissionEnabled": false,
-            "dom.webgpu.enabled": false
+            "datareporting.policy.dataSubmissionEnabled": false
         ])
         
         // HTTPS-only mode
