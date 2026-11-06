@@ -107,7 +107,7 @@ public final class AddonPort: GeckoEventListenerInternal {
     }
     
     @MainActor
-    func handleMessage(type: String, message: [String: Any?]?) async throws -> Any? {
+    public func handleMessage(type: String, message: [String: Any?]?) async throws -> Any? {
         switch type {
         case "GeckoView:WebExtension:PortMessage":
             if let data = message?["data"], let value = data {
