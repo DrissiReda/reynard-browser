@@ -31,8 +31,11 @@ enum { InitiatingActionRedirect = 0, InitiatingActionPopUp = 1 };
 @property (nonatomic, strong) id authorization;
 @property (nonatomic, copy, nullable) AppleSSOCompletion completion;
 @property (nonatomic, weak) UIViewController *presenter;
+@property (nonatomic, weak, nullable) UIViewController *presented; // AppSSO sheet, dismissed on finish
 @property (nonatomic, strong, nullable) AppleSSOSession *retainSelf; // AppSSO holds its delegate weakly
 @end
+
+static AppleSSOSession *liveSession; // main thread only
 
 @implementation AppleSSOSession
 
@@ -45,6 +48,9 @@ enum { InitiatingActionRedirect = 0, InitiatingActionPopUp = 1 };
         AppleSSOCompletion completion = self.completion;
         self.completion = nil;
         self.retainSelf = nil;
+        if (liveSession == self) liveSession = nil;
+        UIViewController *presented = self.presented;
+        if (presented.presentingViewController) [presented dismissViewControllerAnimated:YES completion:nil];
         if (completion) completion(status, headers, cookies, body, handled);
     });
 }
@@ -96,6 +102,7 @@ enum { InitiatingActionRedirect = 0, InitiatingActionPopUp = 1 };
             if (completion) completion(NO, nil);
             return;
         }
+        self.presented = viewController;
         [presenter presentViewController:viewController animated:YES completion:^{
             if (completion) completion(YES, nil);
         }];
@@ -123,7 +130,20 @@ enum { InitiatingActionRedirect = 0, InitiatingActionPopUp = 1 };
         return;
     }
 
+    AppleSSOSession *stale = liveSession;
+    if (stale) {
+        [stale notHandled]; // queued first, so a cancel callback cannot win
+        SEL cancel = NSSelectorFromString(@"cancelAuthorization");
+        if ([stale.authorization respondsToSelector:cancel]) {
+            ((void (*)(id, SEL))objc_msgSend)(stale.authorization, cancel);
+        }
+    }
     AppleSSOSession *session = [AppleSSOSession new];
+    liveSession = session;
+    __weak AppleSSOSession *weakSession = session;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 120 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        [weakSession notHandled]; // no-op once finished (completion already nil)
+    });
     session.completion = completion;
     session.presenter = presenter;
     session.retainSelf = session;
