@@ -253,9 +253,10 @@ final class DownloadStore: NSObject {
             return nil
         }
         
-        let fileName = sanitizedFileName(
+        let fileName = resolvedFileName(
             suggestedFileName: response.filename,
-            sourceURL: sourceURL
+            sourceURL: sourceURL,
+            mimeType: response.mimeType
         )
         let controls = CapturedDownloadControls(
             cancel: response.cancel,
