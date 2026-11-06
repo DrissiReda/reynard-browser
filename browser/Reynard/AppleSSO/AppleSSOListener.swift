@@ -10,6 +10,8 @@
 import UIKit
 import GeckoView
 
+extension Notification.Name { static let appleSSOFinished = Notification.Name("appleSSOFinished") }
+
 @MainActor
 final class AppleSSOListener: GeckoEventListenerInternal {
     static let shared = AppleSSOListener()
@@ -36,6 +38,9 @@ final class AppleSSOListener: GeckoEventListenerInternal {
                 url, headers: headers, initiatorOrigin: origin, userGesture: userGesture,
                 popup: popup, presenter: presenter
             ) { status, headers, cookies, body, handled in
+                if popup {
+                    NotificationCenter.default.post(name: .appleSSOFinished, object: nil, userInfo: ["handled": handled])
+                }
                 continuation.resume(returning: [
                     "handled": handled,
                     "status": status,
