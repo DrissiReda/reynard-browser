@@ -68,14 +68,26 @@ final class UniversalLinkManager {
             return await open(url, universalLinksOnly: false) ? .deny : .allow
         }
         
-        guard
-            !session.isPrivateMode,
-            request.isUserInitiatedNavigation
-        else {
+        guard !session.isPrivateMode else {
             return .allow
         }
         
-        if let triggerUri = request.triggerUri,
+        // Custom schemes (tel:, mailto:, ...) and Apple Maps open any app, not just universal links.
+        let internalSchemes: Set<String> = ["http", "https", "about", "data", "blob", "file", "javascript", "moz-extension", "resource", "chrome", "view-source", "reynard"]
+        let scheme = url.scheme?.lowercased() ?? ""
+        let isCustomLink = !internalSchemes.contains(scheme)
+            || (scheme == "https" && url.host == "maps.apple.com")
+        if isCustomLink {
+            guard request.hasUserGesture || request.isUserInitiatedNavigation else {
+                return .allow
+            }
+        } else {
+            guard request.isUserInitiatedNavigation, URLUtils.isWebURL(url) else {
+                return .allow
+            }
+        }
+        
+        if !isCustomLink, let triggerUri = request.triggerUri,
            let triggerURL = URL(string: triggerUri),
            let triggerHost = triggerURL.host,
            let destinationHost = url.host,
@@ -92,7 +104,7 @@ final class UniversalLinkManager {
         }
         
         let task = Task { @MainActor in
-            return await open(url, universalLinksOnly: true)
+            return await open(url, universalLinksOnly: !isCustomLink)
         }
         handoffTasks[key] = task
         defer { handoffTasks.removeValue(forKey: key) }
@@ -152,7 +164,7 @@ final class UniversalLinkManager {
             }
             UIApplication.shared.open(
                 url,
-                options: [.universalLinksOnly: universalLinksOnly],
+                options: universalLinksOnly ? [.universalLinksOnly: true] : [:],
                 completionHandler: { success in
                     gate.finish(with: success)
                 }
