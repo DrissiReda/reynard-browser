@@ -46,6 +46,7 @@ final class AddonPopupViewController: UIViewController, ContentDelegate, Navigat
     private let session: GeckoSession
     private let promptCoordinator = PromptCoordinator(presenter: PromptPresenter())
     private var outsideTapGestureRecognizer: UITapGestureRecognizer?
+    private var containerBottomConstraint: NSLayoutConstraint?
     private var hasClosedSession = false
     private var hasNotifiedDismissal = false
     
@@ -188,6 +189,27 @@ final class AddonPopupViewController: UIViewController, ContentDelegate, Navigat
         if #unavailable(iOS 26.0) {
             constrainModalTopBorder(in: sheetView)
         }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+    }
+    
+    // keep the legacy sheet above the software keyboard
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        guard let constraint = containerBottomConstraint,
+              let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return
+        }
+        
+        let keyboardFrame = view.convert(frame, from: nil)
+        constraint.constant = -max(0, view.bounds.maxY - keyboardFrame.minY)
+        let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        UIView.animate(withDuration: duration) {
+            self.view.layoutIfNeeded()
+        }
     }
     
     @available(iOS 26.0, *)
@@ -322,17 +344,23 @@ final class AddonPopupViewController: UIViewController, ContentDelegate, Navigat
     // MARK: - Constraints
     
     private func constrainContainerView(_ containerView: UIView) {
+        let bottom = containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        containerBottomConstraint = bottom
         NSLayoutConstraint.activate([
             containerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            containerView.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor),
+            bottom
         ])
         
+        // shrinks when the keyboard leaves less room than the preferred height
         let mediumHeight = containerView.heightAnchor.constraint(
             equalTo: view.heightAnchor,
             multiplier: UX.mediumHeightMultiplier
         )
+        mediumHeight.priority = .defaultHigh
         let largeHeight = containerView.heightAnchor.constraint(equalTo: view.heightAnchor)
+        largeHeight.priority = .defaultHigh
         
         if traitCollection.horizontalSizeClass == .compact && traitCollection.verticalSizeClass == .compact {
             largeHeight.isActive = true

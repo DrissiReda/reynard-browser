@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..dc4f34ab1b15
 --- /dev/null
 +++ b/widget/uikit/GeckoEditableSupport.mm
-@@ -0,0 +1,4215 @@
+@@ -0,0 +1,4224 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2746,6 +2746,15 @@ index 000000000000..dc4f34ab1b15
 +    handler->SynchronizeTextInputState();
 +    [self scrollSelectionToVisible:NO];
 +    [self refreshSelectionUI];
++  }
++  // Like Safari, Return in a single-line field hides the software keyboard.
++  if ([aText isEqualToString:@"\n"] && mGeckoChild && !mGeckoChild->Destroyed()) {
++    const nsString& type = mGeckoChild->GetInputContext().mHTMLInputType;
++    if (!type.IsEmpty() && !type.EqualsLiteral("textarea")) {
++      dispatch_async(dispatch_get_main_queue(), ^{
++        [self dismissSoftwareKeyboard];
++      });
++    }
 +  }
 +}
 +

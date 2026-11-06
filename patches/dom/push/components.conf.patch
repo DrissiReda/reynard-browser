@@ -1,0 +1,13 @@
+diff --git a/dom/push/components.conf b/dom/push/components.conf
+index 8817e10ee8..eb35073607 100644
+--- a/dom/push/components.conf
++++ b/dom/push/components.conf
+@@ -20,7 +20,7 @@ Classes = [
+     },
+ ]
+ 
+-if buildconfig.substs['MOZ_WIDGET_TOOLKIT'] not in ('android', 'uikit'):
++if buildconfig.substs['MOZ_WIDGET_TOOLKIT'] not in ('android',):
+     Classes += [
+         {
+             'cid': '{daaa8d73-677e-4233-8acd-2c404bd01658}',

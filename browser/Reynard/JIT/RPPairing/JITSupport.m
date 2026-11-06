@@ -5,6 +5,7 @@
 //  Created by Minh Ton on 11/3/2026.
 //
 
+#if !TARGET_OS_SIMULATOR
 #import "JITSupport.h"
 #import "JITErrors.h"
 #import "JITUtils.h"
@@ -882,3 +883,4 @@ void resetJITEndpointMonitor(void) {
         stopEndpointMonitorLocked();
     });
 }
+#endif
