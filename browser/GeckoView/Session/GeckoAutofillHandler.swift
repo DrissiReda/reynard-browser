@@ -73,6 +73,7 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
     private var focusedField: CredentialField?
     private var autofillSessionId: String?
     private var fillContinuations: [String: CheckedContinuation<Any?, Never>] = [:]
+    private var pendingBlurDiscard: DispatchWorkItem?
     
     init(session: GeckoSession) {
         self.session = session
@@ -113,7 +114,14 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
                 }
             }
         case .focus:
-            let hadActiveAutofillFocus = hasActiveAutofillFocus()
+            // A same-document focus move (e.g. between separate single-char OTC
+            // boxes) arrives as a blur (nil node) immediately followed by a focus.
+            // Treat a still-pending blur as if focus was never lost, so we skip the
+            // resign/become teardown that otherwise dismisses the keyboard per digit.
+            pendingBlurDiscard?.cancel()
+            let hadPendingBlur = pendingBlurDiscard != nil
+            pendingBlurDiscard = nil
+            let hadActiveAutofillFocus = hasActiveAutofillFocus() || hadPendingBlur
             let previousFieldUuid = focusedField?.uuid
             let wasFirstResponder = session?.engineView?.isFirstResponder == true
             if let fieldPayload = message?["node"] as? [String: Any?],
@@ -127,9 +135,15 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
             let isGeometryRefresh = focusedField?.uuid == previousFieldUuid
             if !isGeometryRefresh {
                 if focusedField == nil && hadActiveAutofillFocus {
-                    discardTextInputDocument()
-                }
-                if !hadActiveAutofillFocus,
+                    // Defer the teardown: a sibling field often focuses next.
+                    let work = DispatchWorkItem { [weak self] in
+                        self?.pendingBlurDiscard = nil
+                        self?.discardTextInputDocument()
+                        self?.refreshAutofillSuggestions()
+                    }
+                    pendingBlurDiscard = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+                } else if !hadActiveAutofillFocus,
                    hasAutofillFocus,
                    let view = session?.engineView,
                    view.isFirstResponder {
@@ -269,6 +283,8 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
     }
     
     private func clearState(refreshSuggestions shouldRefresh: Bool) {
+        pendingBlurDiscard?.cancel()
+        pendingBlurDiscard = nil
         let hadActiveAutofillFocus = hasActiveAutofillFocus()
         let continuations = Array(fillContinuations.values)
         fillContinuations.removeAll()
