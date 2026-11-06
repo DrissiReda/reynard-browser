@@ -132,7 +132,7 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
                 focusedField = nil
             }
             let hasAutofillFocus = hasActiveAutofillFocus()
-            let isGeometryRefresh = focusedField?.uuid == previousFieldUuid
+            let isGeometryRefresh = focusedField?.uuid == previousFieldUuid && !hadPendingBlur
             if !isGeometryRefresh {
                 if focusedField == nil && hadActiveAutofillFocus {
                     // Defer the teardown: a sibling field often focuses next.
@@ -283,8 +283,11 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
     }
     
     private func clearState(refreshSuggestions shouldRefresh: Bool) {
-        pendingBlurDiscard?.cancel()
-        pendingBlurDiscard = nil
+        if let pending = pendingBlurDiscard {
+            pending.cancel()
+            pendingBlurDiscard = nil
+            discardTextInputDocument()
+        }
         let hadActiveAutofillFocus = hasActiveAutofillFocus()
         let continuations = Array(fillContinuations.values)
         fillContinuations.removeAll()
