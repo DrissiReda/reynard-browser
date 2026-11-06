@@ -88,6 +88,10 @@ final class BitwardenSettingsSection: NSObject {
             showResult(ok: false, message: NSLocalizedString("Enter server, email and master password.", comment: ""), from: vc)
             return
         }
+        guard url.scheme?.lowercased() == "https", !(url.host ?? "").isEmpty else {
+            showResult(ok: false, message: NSLocalizedString("The server URL must start with https://.", comment: ""), from: vc)
+            return
+        }
         let client = BitwardenAuthClient(baseURL: url)
         let store = self.store
         let deviceId = self.deviceId
