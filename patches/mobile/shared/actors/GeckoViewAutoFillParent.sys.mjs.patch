@@ -24,7 +24,7 @@ index d7248d61feb9..74e35b2a1a8f 100644
 -  focus(node) {
 -    this.autofill?.focus(node);
 +  focus(node, sourceActor = this) {
-+    const autofill = node?.isOneTimeCode
++    const autofill = node?.isOneTimeCode || node?.contentType
 +      ? lazy.gAutofillManager.ensure(this.sessionId, this.eventDispatcher, this)
 +      : this.autofill;
 +    if (node?.isOneTimeCode) {

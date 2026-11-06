@@ -19,6 +19,7 @@ private struct CredentialField {
     let formUuid: String?
     let credentialRole: String
     let isOneTimeCode: Bool
+    let contentType: String?
     let origin: String?
     
     init?(_ payload: [String: Any?]) {
@@ -31,6 +32,7 @@ private struct CredentialField {
         isOneTimeCode = PayloadValue.bool(
             payload["isOneTimeCode"] ?? nil
         ) ?? false
+        contentType = payload["contentType"] as? String
         origin = payload["origin"] as? String
     }
 }
@@ -123,6 +125,7 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
             pendingBlurDiscard = nil
             let hadActiveAutofillFocus = hasActiveAutofillFocus() || hadPendingBlur
             let previousFieldUuid = focusedField?.uuid
+            let hadContentType = focusedField?.contentType != nil
             let wasFirstResponder = session?.engineView?.isFirstResponder == true
             if let fieldPayload = message?["node"] as? [String: Any?],
                let field = CredentialField(fieldPayload) {
@@ -155,6 +158,9 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
                 } else if hadActiveAutofillFocus || hasAutofillFocus {
                     refreshAutofillSuggestions()
                 }
+            }
+            if hadContentType || focusedField?.contentType != nil {
+                refreshAutofillSuggestions()
             }
             return nil
         }
@@ -191,7 +197,7 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
             return .oneTimeCode
         }
         guard acceptsLoginCredentials() else {
-            return nil
+            return Self.contactContentType(focusedField.contentType)
         }
         switch focusedField.credentialRole {
         case "username":
@@ -200,6 +206,26 @@ final class GeckoAutofillHandler: NSObject, GeckoSessionHandlerCommon {
             return .password
         default:
             return nil
+        }
+    }
+    
+    private static func contactContentType(_ token: String?) -> UITextContentType? {
+        switch token {
+        case "name", "cc-name": return .name
+        case "given-name": return .givenName
+        case "family-name": return .familyName
+        case "email": return .emailAddress
+        case "tel", "tel-national": return .telephoneNumber
+        case "street-address": return .fullStreetAddress
+        case "address-line1": return .streetAddressLine1
+        case "address-line2": return .streetAddressLine2
+        case "address-level2": return .addressCity
+        case "address-level1": return .addressState
+        case "postal-code": return .postalCode
+        case "country-name": return .countryName
+        case "organization": return .organizationName
+        case "cc-number": return .creditCardNumber
+        default: return nil
         }
     }
     
