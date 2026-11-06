@@ -35,27 +35,28 @@ struct BiometricKeyStore {
             nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .biometryCurrentSet, nil
         ) else { throw BiometricKeyStoreError.unavailable }
 
-        let match: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        // Add first (update if present); never delete before the write succeeds.
-        var attrs = match
-        attrs[kSecValueData as String] = key
-        attrs[kSecAttrAccessControl as String] = ac
-        // Write must not trigger the biometric UI; supply an evaluated-free context.
-        attrs[kSecUseAuthenticationContext as String] = { let c = LAContext(); c.interactionNotAllowed = true; return c }()
-        var status = SecItemAdd(attrs as CFDictionary, nil)
-        if status == errSecDuplicateItem {
-            // Same (service, account) already exists: replace its value atomically.
-            // SecItemUpdate keeps the old item if the update fails.
-            status = SecItemUpdate(match as CFDictionary, [
+        func attrs(_ acct: String) -> CFDictionary {
+            [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: acct,
                 kSecValueData as String: key,
                 kSecAttrAccessControl as String: ac,
-            ] as CFDictionary)
+                // Write must not trigger the biometric UI; supply an evaluated-free context.
+                kSecUseAuthenticationContext as String: { let c = LAContext(); c.interactionNotAllowed = true; return c }(),
+            ] as CFDictionary
         }
+        // Add the new key under a temp account first: if that fails the old item is
+        // untouched. Only then swap it into place (an ACL-protected item can't be
+        // updated in place without a Face ID prompt).
+        let temp = account + ".new"
+        try? delete(account: temp)
+        let status = SecItemAdd(attrs(temp), nil)
         guard status == errSecSuccess else { throw BiometricKeyStoreError.keychain(status) }
+        try? delete(account: account)
+        let added = SecItemAdd(attrs(account), nil)
+        try? delete(account: temp)
+        guard added == errSecSuccess else { throw BiometricKeyStoreError.keychain(added) }
     }
 
     /// Retrieve the key for `account`, prompting Face ID with `reason`.
