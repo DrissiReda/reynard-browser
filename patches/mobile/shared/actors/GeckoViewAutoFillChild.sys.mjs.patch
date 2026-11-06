@@ -1,5 +1,5 @@
 diff --git a/mobile/shared/actors/GeckoViewAutoFillChild.sys.mjs b/mobile/shared/actors/GeckoViewAutoFillChild.sys.mjs
-index 5c273d0..7b30a24 100644
+index 5c273d0eae..c0e1a24095 100644
 --- a/mobile/shared/actors/GeckoViewAutoFillChild.sys.mjs
 +++ b/mobile/shared/actors/GeckoViewAutoFillChild.sys.mjs
 @@ -4,6 +4,12 @@
@@ -38,13 +38,9 @@ index 5c273d0..7b30a24 100644
            break;
          }
 +        const isOneTimeCode = this._isOneTimeCodeField(element);
-+        const contentType = isOneTimeCode ? "" : this._contactContentType(element);
++        let contentType;
 +        if (isOneTimeCode) {
 +          this._getInfo(element, null, null, null, null, null, true);
-+          this.onFocus(element);
-+        } else if (contentType) {
-+          // Address/contact/card field: expose role so Swift sets textContentType.
-+          this._getInfo(element).contentType = contentType;
 +          this.onFocus(element);
 +        } else if (this._autofillInfos?.has(element)) {
 +          this.onFocus(element);
@@ -67,6 +63,10 @@ index 5c273d0..7b30a24 100644
 +            lazy.FormLikeFactory.createFromField(element),
 +            element
 +          );
++        } else if ((contentType = this._contactContentType(element))) {
++          // Address/contact/card field: expose role so Swift sets textContentType.
++          this._getInfo(element).contentType = contentType;
++          this.onFocus(element);
 +        }
          GeckoViewUtils.waitForPanZoomState(this.contentWindow).finally(() => {
            if (Cu.isDeadWrapper(element)) {
@@ -111,7 +111,7 @@ index 5c273d0..7b30a24 100644
            this.onFocus(null);
          }
          break;
-@@ -84,6 +147,57 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -84,6 +147,46 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
      }
    }
  
@@ -119,22 +119,11 @@ index 5c273d0..7b30a24 100644
 +    if (!this.contentWindow.HTMLInputElement.isInstance(aElement)) {
 +      return "";
 +    }
-+    const token = aElement.getAutocompleteInfo()?.fieldName;
-+    const ok = [
-+      "name", "given-name", "family-name", "email", "tel", "tel-national",
-+      "street-address", "address-line1", "address-line2", "address-level1",
-+      "address-level2", "postal-code", "country-name", "organization",
-+      "cc-number", "cc-name",
-+    ];
-+    if (ok.includes(token)) {
-+      return token;
-+    }
-+    if (token) {
-+      return "";
-+    }
-+    return ["email", "tel"].includes(aElement.type)
-+      ? aElement.type
-+      : guessSafariContactFieldType(aElement);
++    // The token -> UITextContentType mapping lives in Swift (unknown -> nil).
++    return (
++      aElement.getAutocompleteInfo()?.fieldName ||
++      guessSafariContactFieldType(aElement)
++    );
 +  }
 +
 +  _isOneTimeCodeField(aElement) {
@@ -169,7 +158,7 @@ index 5c273d0..7b30a24 100644
    /**
     * Process an auto-fillable form and send the relevant details of the form
     * to Java. Multiple calls within a short time period for the same form are
-@@ -93,14 +207,27 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -93,14 +196,27 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
     * there is no difference in how we process them.
     *
     * @param aFormLike A FormLike object produced by FormLikeFactory.
@@ -199,7 +188,7 @@ index 5c273d0..7b30a24 100644
        if (
          ChromeUtils.getClassName(field) === "HTMLInputElement" &&
          field.type == "password"
-@@ -112,11 +239,15 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -112,11 +228,15 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
  
      const loginManagerChild = lazy.LoginManagerChild.forWindow(window);
      const docState = loginManagerChild.stateForDocument(
@@ -219,7 +208,7 @@ index 5c273d0..7b30a24 100644
  
      const focusedElement = aFormLike.rootElement.ownerDocument.activeElement;
      let sendFocusEvent = aFormLike.rootElement === focusedElement;
-@@ -129,10 +260,11 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -129,10 +249,11 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
      );
  
      rootInfo.rootUuid = rootInfo.uuid;
@@ -232,7 +221,7 @@ index 5c273d0..7b30a24 100644
            (!usernameField ||
              element.type != "text" ||
              element == usernameField ||
-@@ -145,9 +277,18 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -145,9 +266,18 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
            element,
            rootInfo.uuid,
            rootInfo.uuid,
@@ -252,7 +241,7 @@ index 5c273d0..7b30a24 100644
  
      try {
        // We don't await here so that we can send a focus event immediately
-@@ -199,7 +340,15 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -199,7 +329,15 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
      }
    }
  
@@ -269,7 +258,7 @@ index 5c273d0..7b30a24 100644
      if (!this._autofillInfos) {
        this._autofillInfos = new WeakMap();
        this._autofillElements = new Map();
-@@ -207,6 +356,9 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -207,6 +345,9 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
  
      let info = this._autofillInfos.get(aElement);
      if (info) {
@@ -279,7 +268,7 @@ index 5c273d0..7b30a24 100644
        return info;
      }
  
-@@ -249,6 +401,7 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -249,6 +390,7 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
        ),
        origin: aElement.ownerDocument.location.origin,
        autofillhint: "",
@@ -287,7 +276,7 @@ index 5c273d0..7b30a24 100644
        bounds: {
          left: bounds.left,
          top: bounds.top,
-@@ -258,16 +411,32 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -258,16 +400,32 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
        datalist: [],
      };
  
@@ -321,7 +310,7 @@ index 5c273d0..7b30a24 100644
        }
  
        if (aElement.list?.options) {
-@@ -283,6 +452,227 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
+@@ -283,6 +441,227 @@ export class GeckoViewAutoFillChild extends GeckoViewActorChild {
      return info;
    }
  
