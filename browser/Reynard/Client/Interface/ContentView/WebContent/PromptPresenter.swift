@@ -240,8 +240,17 @@ final class PromptPresenter: PromptPresenting {
             alert.addAction(UIAlertAction(title: NSLocalizedString("Leave", comment: ""), style: .destructive) { _ in
                 allowed = true
             })
+            guard !presenter.isBeingDismissed else {
+                continuation.resume(returning: .beforeUnload(allowed: false))
+                return
+            }
             beforeUnloadAlerts[request.id] = alert
             presenter.present(alert, animated: true)
+            if alert.presentingViewController == nil {
+                // Presentation failed: never leave the tab waiting.
+                alert.onDismissed = nil
+                continuation.resume(returning: .beforeUnload(allowed: false))
+            }
         }
     }
     
