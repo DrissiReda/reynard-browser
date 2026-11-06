@@ -48,6 +48,12 @@ enum RuntimePreferences {
             ])
         }
         
+        // No web push / web notifications (battery)
+        GeckoRuntime.setDefaultPrefs([
+            "dom.push.enabled": false,
+            "dom.webnotifications.enabled": false
+        ])
+        
         // HTTPS-only mode
         HTTPSOnlyModePolicyController.applyHTTPSOnlyMode()
         
