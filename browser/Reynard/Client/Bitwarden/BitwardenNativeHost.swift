@@ -27,11 +27,19 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
     /// Shared AES+HMAC secret per extension appId (survives across its messages).
     private var secrets: [String: BitwardenSymmetricKey] = [:]
 
+    /// appIds seen per port, so their secrets can be dropped on disconnect.
+    private var portAppIds: [ObjectIdentifier: Set<String>] = [:]
+    private var runtimeRegistered = false
+    /// Face ID in flight per userId; concurrent requests share one prompt.
+    private var unlockWaiters: [String: [(Bool, String?) -> Void]] = [:]
+
     func register(for session: GeckoSession) {
         session.setAddonMessageDelegate(self, extensionID: Self.extensionID, nativeApp: Self.nativeApp)
         // Bitwarden's biometric handshake runs in its background service worker,
         // which has no tab session: connectNative dispatches on the runtime
         // dispatcher, so we must register there too.
+        guard !runtimeRegistered else { return }
+        runtimeRegistered = true
         AddonRuntime.shared.setRuntimeAddonMessageDelegate(self, extensionID: Self.extensionID, nativeApp: Self.nativeApp)
     }
 
@@ -46,7 +54,9 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
     }
 
     func addonPortDidDisconnect(_ port: AddonPort) {
-        ports.removeValue(forKey: ObjectIdentifier(port))
+        let id = ObjectIdentifier(port)
+        ports.removeValue(forKey: id)
+        for appId in portAppIds.removeValue(forKey: id) ?? [] { secrets.removeValue(forKey: appId) }
     }
 
     // MARK: - Inbound
@@ -55,6 +65,7 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
         guard let outer = message as? [String: Any] else { return }
         let appId = outer["appId"] as? String ?? ""
         let inner = outer["message"]
+        portAppIds[ObjectIdentifier(port), default: []].insert(appId)
 
         // Handshake is plaintext.
         if let m = inner as? [String: Any], (m["command"] as? String) == "setupEncryption" {
@@ -131,11 +142,19 @@ final class BitwardenNativeHost: AddonMessageDelegate, AddonPortDelegate {
     /// Runs Face ID off the main actor (SecItemCopyMatching blocks on the prompt).
     private func unlock(userId: String?, reason: String, completion: @escaping (Bool, String?) -> Void) {
         guard let userId else { completion(false, nil); return }
+        if unlockWaiters[userId] != nil {
+            unlockWaiters[userId]?.append(completion)
+            return
+        }
+        unlockWaiters[userId] = [completion]
         let store = self.store
         Task.detached {
             let key = try? store.load(account: userId, reason: reason)
             let b64 = key?.base64EncodedString()
-            await MainActor.run { completion(b64 != nil, b64) }
+            await MainActor.run {
+                let waiters = self.unlockWaiters.removeValue(forKey: userId) ?? []
+                for w in waiters { w(b64 != nil, b64) }
+            }
         }
     }
 
