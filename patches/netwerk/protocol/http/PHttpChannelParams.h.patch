@@ -1,0 +1,27 @@
+diff --git a/netwerk/protocol/http/PHttpChannelParams.h b/netwerk/protocol/http/PHttpChannelParams.h
+index 88bb73feee..d741f2b7c5 100644
+--- a/netwerk/protocol/http/PHttpChannelParams.h
++++ b/netwerk/protocol/http/PHttpChannelParams.h
+@@ -16,6 +16,7 @@
+ #include "nsHttpHeaderArray.h"
+ #include "nsHttpRequestHead.h"
+ #include "nsHttpResponseHead.h"
++#include "nsXULAppAPI.h"
+ 
+ namespace mozilla {
+ namespace net {
+@@ -190,8 +191,14 @@ struct ParamTraits<mozilla::net::nsHttpHeaderArray> {
+ 
+   // Writes in the same format as ParamTraits<nsTArray>, skipping Set-Cookie
+   // entries so they never reach another process.
++  // Reynard: the socket process does the networking on iOS, and the parent
++  // must still see Set-Cookie to store cookies, so keep it there.
+   static void Write(MessageWriter* aWriter, const paramType& aParam) {
+     const auto& headers = aParam.mHeaders;
++    if (XRE_IsSocketProcess()) {
++      WriteParam(aWriter, headers);
++      return;
++    }
+     auto stripped = std::count_if(headers.begin(), headers.end(), IsSetCookie);
+     aWriter->WriteUInt32(headers.Length() - stripped);
+     for (const auto& entry : headers) {

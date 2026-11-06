@@ -6,6 +6,17 @@
 //
 
 #import "JITEnabler.h"
+#if TARGET_OS_SIMULATOR
+@implementation JITEnabler
++ (JITEnabler *)shared {
+    static JITEnabler *s; static dispatch_once_t t;
+    dispatch_once(&t, ^{ s = [[self alloc] init]; });
+    return s;
+}
+- (BOOL)enableJITForPID:(int32_t)pid hasTXMSupport:(BOOL)h error:(NSError **)e { return YES; }
+- (void)detachAllJITSessions {}
+@end
+#else
 #import "JITErrors.h"
 #import "JITSupport.h"
 #import "JITUtils.h"
@@ -245,3 +256,4 @@
 }
 
 @end
+#endif

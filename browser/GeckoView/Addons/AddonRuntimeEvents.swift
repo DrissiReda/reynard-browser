@@ -56,6 +56,9 @@ extension AddonRuntime {
     
     @MainActor
     public func handleMessage(type: String, message: [String: Any?]?) async throws -> Any? {
+        if type == "GeckoView:WebExtension:Connect" || type == "GeckoView:WebExtension:Message" {
+            return try await handleRuntimeAddonMessage(type: type, message: message)
+        }
         guard let event = AddonRuntimeEvent(rawValue: type) else {
             throw GeckoHandlerError("unknown message \(type)")
         }

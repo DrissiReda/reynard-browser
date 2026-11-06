@@ -1,0 +1,9 @@
+diff --git a/mobile/shared/components/extensions/schemas/jar.mn b/mobile/shared/components/extensions/schemas/jar.mn
+index 9f15031..6c03f48 100644
+--- a/mobile/shared/components/extensions/schemas/jar.mn
++++ b/mobile/shared/components/extensions/schemas/jar.mn
+@@ -5,3 +5,4 @@
+ geckoview.jar:
+     content/schemas/gecko_view_addons.json
+     content/schemas/tabs.json
++    content/schemas/windows.json

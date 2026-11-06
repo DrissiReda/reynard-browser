@@ -49,7 +49,7 @@ final class BrowserPreferences {
             
             // JIT
             key("JITSettings", "isJITEnabled"): false,
-            
+
             // Experimental
             
             // Compatibility
@@ -1081,7 +1081,7 @@ final class BrowserPreferences {
             }
         }
     }
-    
+
     // MARK: - Bookmarks
     struct BookmarkSettings {
         static var placeFoldersOnTop: Bool {

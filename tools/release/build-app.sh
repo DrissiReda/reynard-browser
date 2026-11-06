@@ -27,6 +27,15 @@ done
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
+# Auto-increment the -devN build number in the source xcconfig so every build
+# has a distinct, monotonic version visible in-app (Settings/About).
+DEV_N=$(sed -nE 's|^CURRENT_VERSION = [0-9.]+-dev([0-9]+)$|\1|p' "$XCCONFIG_PATH")
+if [ -n "$DEV_N" ]; then
+	NEXT_N=$((DEV_N + 1))
+	sed -i '' -E "s|^(CURRENT_VERSION = [0-9.]+)-dev[0-9]+$|\1-dev${NEXT_N}|" "$XCCONFIG_PATH"
+	echo "build version: $(sed -nE 's|^CURRENT_VERSION = (.+)$|\1|p' "$XCCONFIG_PATH")"
+fi
+
 cp "$XCCONFIG_PATH" "$BUILD_XCCONFIG_PATH"
 
 BUILD_SHA=$(git -C "$ROOT_DIR" rev-parse HEAD | cut -c1-7)

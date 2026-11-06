@@ -4,6 +4,8 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock your Bitwarden vault with Face ID instead of typing your master password.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

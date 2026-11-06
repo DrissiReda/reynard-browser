@@ -512,7 +512,18 @@ final class DownloadsViewController: UIViewController, UITableViewDataSource, UI
             }
             openAction.backgroundColor = .systemBlue
             
-            let configuration = UISwipeActionsConfiguration(actions: [deleteAction, shareAction, openAction])
+            let saveAction = UIContextualAction(style: .normal, title: NSLocalizedString("Save to\nFiles", comment: "Line break intentional")) { [weak self] _, _, completion in
+                guard let self, let fileURL = item.fileURL else {
+                    completion(false)
+                    return
+                }
+                
+                self.presentSaveToFiles(fileURL)
+                completion(true)
+            }
+            saveAction.backgroundColor = .systemIndigo
+            
+            let configuration = UISwipeActionsConfiguration(actions: [deleteAction, shareAction, saveAction, openAction])
             configuration.performsFirstActionWithFullSwipe = true
             return configuration
         }

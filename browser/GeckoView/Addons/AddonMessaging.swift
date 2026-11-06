@@ -14,21 +14,21 @@ public enum AddonMessageEnvironment: Equatable {
 public final class AddonMessageSender {
     public let extensionID: String
     public private(set) weak var session: GeckoSession?
-    public let sessionIdentifier: ObjectIdentifier
+    public let sessionIdentifier: ObjectIdentifier?
     public let url: String?
     public let environment: AddonMessageEnvironment
     public let isTopLevel: Bool
-    
+
     init(
         extensionID: String,
-        session: GeckoSession,
+        session: GeckoSession?,
         url: String?,
         environment: AddonMessageEnvironment,
         isTopLevel: Bool
     ) {
         self.extensionID = extensionID
         self.session = session
-        sessionIdentifier = ObjectIdentifier(session)
+        sessionIdentifier = session.map { ObjectIdentifier($0) }
         self.url = url
         self.environment = environment
         self.isTopLevel = isTopLevel
@@ -176,41 +176,62 @@ extension AddonSessionListener {
             throw GeckoHandlerError("No WebExtension message delegate registered")
         }
         
-        let senderPayload = message?["sender"] as? [String: Any?] ?? [:]
-        let environment: AddonMessageEnvironment
-        switch senderPayload["envType"] as? String {
-        case "content_child":
-            environment = .contentScript
-        case "addon_child":
-            environment = .extensionPage
-        default:
-            environment = .unknown
-        }
-        let frameID = PayloadValue.int(senderPayload["frameId"] ?? nil)
-        let sender = AddonMessageSender(
+        return try await dispatchAddonMessage(
+            type: type,
+            message: message,
             extensionID: extensionID,
+            nativeApp: nativeApp,
             session: session,
-            url: senderPayload["url"] as? String,
-            environment: environment,
-            isTopLevel: environment == .extensionPage || frameID == 0
+            delegate: delegate
         )
-        
-        switch type {
-        case "GeckoView:WebExtension:Connect":
-            guard let portID = PayloadValue.int64(message?["portId"] ?? nil) else {
-                throw GeckoHandlerError("Missing WebExtension port ID")
-            }
-            let port = AddonPort(id: portID, name: nativeApp, sender: sender)
-            delegate.addonPortDidConnect(port)
-            return true
-        case "GeckoView:WebExtension:Message":
-            return try await delegate.addonMessage(
-                message?["data"] ?? NSNull(),
-                nativeApp: nativeApp,
-                sender: sender
-            )
-        default:
-            throw GeckoHandlerError("Unknown WebExtension message event \(type)")
+    }
+}
+
+// Shared Connect/Message dispatch, reused by the per-session listener and the
+// runtime-level listener (background-script native messaging, e.g. Bitwarden).
+@MainActor
+func dispatchAddonMessage(
+    type: String,
+    message: [String: Any?]?,
+    extensionID: String,
+    nativeApp: String,
+    session: GeckoSession?,
+    delegate: AddonMessageDelegate
+) async throws -> Any? {
+    let senderPayload = message?["sender"] as? [String: Any?] ?? [:]
+    let environment: AddonMessageEnvironment
+    switch senderPayload["envType"] as? String {
+    case "content_child":
+        environment = .contentScript
+    case "addon_child":
+        environment = .extensionPage
+    default:
+        environment = .unknown
+    }
+    let frameID = PayloadValue.int(senderPayload["frameId"] ?? nil)
+    let sender = AddonMessageSender(
+        extensionID: extensionID,
+        session: session,
+        url: senderPayload["url"] as? String,
+        environment: environment,
+        isTopLevel: environment == .extensionPage || frameID == 0
+    )
+
+    switch type {
+    case "GeckoView:WebExtension:Connect":
+        guard let portID = PayloadValue.int64(message?["portId"] ?? nil) else {
+            throw GeckoHandlerError("Missing WebExtension port ID")
         }
+        let port = AddonPort(id: portID, name: nativeApp, sender: sender)
+        delegate.addonPortDidConnect(port)
+        return true
+    case "GeckoView:WebExtension:Message":
+        return try await delegate.addonMessage(
+            message?["data"] ?? NSNull(),
+            nativeApp: nativeApp,
+            sender: sender
+        )
+    default:
+        throw GeckoHandlerError("Unknown WebExtension message event \(type)")
     }
 }
