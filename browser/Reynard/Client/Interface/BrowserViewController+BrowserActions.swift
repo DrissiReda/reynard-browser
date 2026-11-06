@@ -50,8 +50,7 @@ extension BrowserViewController {
                 BookmarkActivity(url: url),
                 AddToFavoritesActivity(url: url),
                 FindInPageActivity(url: url),
-                PagePrintActivity(session: tab.session, jobName: tab.title),
-                AddToHomeScreenActivity(url: url)
+                PagePrintActivity(session: tab.session, jobName: tab.title)
             ],
             onActivityPerformed: { [weak self] activityType in
                 guard let self else {
@@ -61,8 +60,6 @@ extension BrowserViewController {
                     self.presentBookmarkEditor(addToFavorites: false)
                 } else if activityType == AddToFavoritesActivity.identifier {
                     self.presentBookmarkEditor(addToFavorites: true)
-                } else if activityType == AddToHomeScreenActivity.identifier {
-                    self.addToHomeScreen(tab: tab, url: url)
                 } else if activityType == FindInPageActivity.identifier {
                     self.browserChrome.showActionBar(.findInPage(), animated: true)
                 }
