@@ -23,6 +23,8 @@ enum BitwardenAuthError: Error {
     case badResponse
     case unsupportedKdf(Int)
     case keyDecryptFailed
+    case badKdfIterations(Int)
+    case cryptoFailed
 }
 
 struct BitwardenEnrolledKey {
@@ -36,7 +38,7 @@ struct BitwardenAuthClient {
 
     // MARK: - Crypto primitives (pure, unit-tested)
 
-    static func pbkdf2SHA256(password: Data, salt: Data, iterations: Int, length: Int = 32) -> Data {
+    nonisolated static func pbkdf2SHA256(password: Data, salt: Data, iterations: Int, length: Int = 32) throws -> Data {
         var out = Data(count: length)
         let status = out.withUnsafeMutableBytes { outPtr in
             password.withUnsafeBytes { pwPtr in
@@ -50,17 +52,17 @@ struct BitwardenAuthClient {
                 }
             }
         }
-        precondition(status == kCCSuccess)
+        guard status == kCCSuccess else { throw BitwardenAuthError.cryptoFailed }
         return out
     }
 
-    static func masterKey(password: String, email: String, iterations: Int) -> Data {
-        pbkdf2SHA256(password: Data(password.utf8),
+    nonisolated static func masterKey(password: String, email: String, iterations: Int) throws -> Data {
+        try pbkdf2SHA256(password: Data(password.utf8),
                      salt: Data(email.lowercased().utf8), iterations: iterations)
     }
 
-    static func masterPasswordHash(masterKey: Data, password: String) -> String {
-        pbkdf2SHA256(password: masterKey, salt: Data(password.utf8), iterations: 1).base64EncodedString()
+    nonisolated static func masterPasswordHash(masterKey: Data, password: String) throws -> String {
+        try pbkdf2SHA256(password: masterKey, salt: Data(password.utf8), iterations: 1).base64EncodedString()
     }
 
     /// HKDF-SHA256 expand-only (masterKey is already a 32-byte PRK), BW stretch.
@@ -109,8 +111,15 @@ struct BitwardenAuthClient {
     func enroll(email: String, password: String, deviceId: String) async throws -> BitwardenEnrolledKey {
         let pre = try await prelogin(email: email)
         guard pre.kdf == 0 else { throw BitwardenAuthError.unsupportedKdf(pre.kdf) }
-        let mk = Self.masterKey(password: password, email: email, iterations: pre.iterations)
-        let hash = Self.masterPasswordHash(masterKey: mk, password: password)
+        guard (5_000...10_000_000).contains(pre.iterations) else {
+            throw BitwardenAuthError.badKdfIterations(pre.iterations)
+        }
+        let iterations = pre.iterations
+        // PBKDF2 at 600k+ iterations blocks for seconds: keep it off the main actor.
+        let (mk, hash) = try await Task.detached {
+            let mk = try Self.masterKey(password: password, email: email, iterations: iterations)
+            return (mk, try Self.masterPasswordHash(masterKey: mk, password: password))
+        }.value
         let token = try await token(email: email, passwordHash: hash, deviceId: deviceId)
         guard let userKey = Self.unwrapUserKey(protectedKey: token.key, masterKey: mk) else {
             throw BitwardenAuthError.keyDecryptFailed
