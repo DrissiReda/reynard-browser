@@ -26,7 +26,7 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
     
     // Like Safari: offer to open or save a finished download right away.
     func downloadsCoordinator(_ coordinator: DownloadsCoordinator, didComplete fileURL: URL) {
-        if ["pkpass", "pkpasses"].contains(fileURL.pathExtension.lowercased()),
+        if fileURL.pathExtension.lowercased() == "pkpass",
            let data = try? Data(contentsOf: fileURL),
            let pass = try? PKPass(data: data),
            let controller = PKAddPassesViewController(pass: pass) {
