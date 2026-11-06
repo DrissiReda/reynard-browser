@@ -1,5 +1,5 @@
 diff --git a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
-index fb883b8efb..4be03470a2 100644
+index fb883b8efb..e673716360 100644
 --- a/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 +++ b/mobile/shared/components/geckoview/GeckoViewStartup.sys.mjs
 @@ -178,6 +178,11 @@ export class GeckoViewStartup {
@@ -38,7 +38,7 @@ index fb883b8efb..4be03470a2 100644
          break;
        }
  
-@@ -378,6 +400,12 @@ export class GeckoViewStartup {
+@@ -378,6 +400,80 @@ export class GeckoViewStartup {
  
          Services.obs.addObserver(this, "browser-idle-startup-tasks-finished");
          Services.obs.addObserver(this, "handlersvc-store-initialized");
@@ -48,6 +48,74 @@ index fb883b8efb..4be03470a2 100644
 +          () => lazy.DoHController.init(),
 +          "geckoview-initial-foreground"
 +        );
++        // Reynard: native Sign in with Apple, as Safari does it (WebKit's
++        // SOAuthorization). An appleid.apple.com authorize page load is held
++        // while iOS shows Apple's sheet; Apple's answer is then served as that
++        // load's response, so the page keeps the appleid.apple.com origin and
++        // works for both the redirect and the popup (window.opener) flows.
++        Services.obs.addObserver(subject => {
++          const channel = subject.QueryInterface(Ci.nsIHttpChannel);
++          const loadInfo = channel.loadInfo;
++          if (
++            channel.URI.host != "appleid.apple.com" ||
++            !channel.URI.filePath.startsWith("/auth/authorize") ||
++            channel.requestMethod != "GET" ||
++            loadInfo.externalContentPolicyType !=
++              Ci.nsIContentPolicy.TYPE_DOCUMENT
++          ) {
++            return;
++          }
++          const headers = {};
++          channel.visitRequestHeaders({
++            visitHeader: (name, value) => (headers[name] = value),
++          });
++          let popup = false;
++          try {
++            popup = !!loadInfo.browsingContext?.opener;
++          } catch {}
++          channel.suspend();
++          lazy.EventDispatcher.instance
++            .sendRequestForResult("Reynard:SOAuthorize", {
++              url: channel.URI.spec,
++              headers,
++              origin: loadInfo.triggeringPrincipal?.originNoSuffix ?? "",
++              userGesture: loadInfo.hasValidUserGestureActivation,
++              popup,
++            })
++            .then(result => {
++              if (!result?.handled) {
++                return; // not for AppSSO: load Apple's web page as usual
++              }
++              if (result.status <= 0) {
++                channel.cancel(Cr.NS_BINDING_ABORTED); // user cancelled the sheet
++                return;
++              }
++              const response = Cc[
++                "@mozilla.org/network/replaced-http-response;1"
++              ].createInstance(Ci.nsIReplacedHttpResponse);
++              response.responseStatus = result.status;
++              response.responseStatusText = result.status == 200 ? "OK" : "";
++              for (const [name, value] of Object.entries(result.headers ?? {})) {
++                // AppSSO hands back a decoded body
++                if (
++                  !/^(content-encoding|content-length|transfer-encoding|connection)$/i.test(
++                    name
++                  )
++                ) {
++                  response.setResponseHeader(name, value, true);
++                }
++              }
++              for (const cookie of result.cookies ?? []) {
++                response.setResponseHeader("Set-Cookie", cookie, true);
++              }
++              response.responseBody = atob(result.body ?? "");
++              channel
++                .QueryInterface(Ci.nsIHttpChannelInternal)
++                .setResponseOverride(response);
++            })
++            .catch(e => console.error("Reynard: Sign in with Apple failed", e))
++            .finally(() => channel.resume());
++        }, "http-on-before-connect");
          Services.obs.addObserver(
            this,
            "network:request-local-network-permission"
