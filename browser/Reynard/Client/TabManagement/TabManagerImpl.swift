@@ -87,6 +87,26 @@ final class TabManagerImplementation: NSObject, TabManager {
         super.init()
         
         networkMonitor.start(queue: .global(qos: .utility))
+        NotificationCenter.default.addObserver(forName: .appleSSOFinished, object: nil, queue: .main) { [weak self] note in
+            self?.appleSSOPopupFinished(handled: note.userInfo?["handled"] as? Bool ?? false)
+        }
+    }
+
+    // Apple sign-in popup tab: kept off-screen; the native sheet replaces it.
+    private var ssoPopupTabID: UUID?
+
+    private func appleSSOPopupFinished(handled: Bool) {
+        guard let id = ssoPopupTabID, let loc = tabLocation(for: id) else { return }
+        ssoPopupTabID = nil
+        if !handled {
+            selectTab(at: loc.index, mode: loc.mode)
+            return
+        }
+        // window.close() normally removes it first; this is the safety net.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, let loc = self.tabLocation(for: id) else { return }
+            self.removeTab(at: loc.index, mode: loc.mode, behavior: .recent)
+        }
     }
     
     deinit {
@@ -1677,6 +1697,10 @@ extension TabManagerImplementation: NavigationDelegate {
         scheduleFaviconUpdate(forTabAt: index, mode: mode)
         persistState()
         
+        if uri.hasPrefix("https://appleid.apple.com/auth/authorize") {
+            ssoPopupTabID = tabID
+            return newSession
+        }
         guard target != .background else { return newSession }
         
         if let previousSession = selectedTab?.session,
