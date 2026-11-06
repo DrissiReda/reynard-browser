@@ -15,7 +15,7 @@ struct GeckoHandlerError: Error {
     }
 }
 
-protocol GeckoEventListenerInternal: AnyObject {
+public protocol GeckoEventListenerInternal: AnyObject {
     @MainActor
     func handleMessage(type: String, message: [String: Any?]?) async throws -> Any?
 }
@@ -36,7 +36,7 @@ extension GeckoEventListenerInternal {
 }
 
 public class GeckoEventDispatcherWrapper: NSObject, SwiftEventDispatcher {
-    static var runtimeInstance = GeckoEventDispatcherWrapper()
+    public static var runtimeInstance = GeckoEventDispatcherWrapper()
     static var dispatchers: [String: GeckoEventDispatcherWrapper] = [:]
     
     struct QueuedMessage {
@@ -65,7 +65,7 @@ public class GeckoEventDispatcherWrapper: NSObject, SwiftEventDispatcher {
         return dispatcher
     }
     
-    func addListener(type: String, listener: GeckoEventListenerInternal) {
+    public func addListener(type: String, listener: GeckoEventListenerInternal) {
         listeners[type, default: []] += [listener]
     }
     

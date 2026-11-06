@@ -8,6 +8,7 @@
 //
 
 import UIKit
+import GeckoView
 
 @MainActor
 final class AppleSSOListener: GeckoEventListenerInternal {
