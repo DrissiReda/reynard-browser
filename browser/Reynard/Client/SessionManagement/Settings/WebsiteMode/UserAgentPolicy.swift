@@ -62,18 +62,22 @@ struct UserAgentPolicy {
         } ?? false)
         
         guard usesAndroidUserAgent else {
-            let ua = prefersDesktopMode ? Self.safariDesktopUserAgent : Self.safariMobileUserAgent
-            let platform = prefersDesktopMode ? "MacIntel" : "iPhone"
-            return UserAgentConfiguration(
-                override: ua,
-                platformOverride: platform,
-                appVersionOverride: String(ua.dropFirst("Mozilla/".count)),
-                oscpuOverride: nil,
-                buildIDOverride: nil,
-                forcesMobileMode: false
-            )
+            return safariConfiguration(prefersDesktopMode: prefersDesktopMode)
         }
         return compatibilityConfiguration(using: selectedConfiguration, forcesMobileMode: false)
+    }
+    
+    func safariConfiguration(prefersDesktopMode: Bool) -> UserAgentConfiguration {
+        let ua = prefersDesktopMode ? Self.safariDesktopUserAgent : Self.safariMobileUserAgent
+        let platform = prefersDesktopMode ? "MacIntel" : "iPhone"
+        return UserAgentConfiguration(
+            override: ua,
+            platformOverride: platform,
+            appVersionOverride: String(ua.dropFirst("Mozilla/".count)),
+            oscpuOverride: "", // Safari has no navigator.oscpu
+            buildIDOverride: nil,
+            forcesMobileMode: false
+        )
     }
     
     func defaultConfiguration(

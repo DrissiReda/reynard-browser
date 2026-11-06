@@ -54,7 +54,7 @@ final class BrowserPreferences {
             
             // Compatibility
             key("CompatibilitySettings", "androidUserAgentDomains"): [],
-            key("CompatibilitySettings", "useAndroidUserAgent"): true,
+            key("CompatibilitySettings", "useAndroidUserAgent"): false,
             key("CompatibilitySettings", "customUserAgent"): "",
             key("CompatibilitySettings", "customPlatform"): "",
             key("CompatibilitySettings", "customAppVersion"): "",
