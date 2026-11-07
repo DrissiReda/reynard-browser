@@ -86,6 +86,15 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         }
     }
     
+    /// Web app mode (launched from a home screen web clip): browser chrome hidden.
+    var isStandalone = false {
+        didSet {
+            guard isStandalone != oldValue else { return }
+            updateBrowserLayout(animated: false)
+            view.setNeedsLayout()
+        }
+    }
+    
     // MARK: - Lifecycle
     
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -225,7 +234,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         let showsHomepage = tabManager.selectedTab.map(homepageOverlayCoordinator.isHomepageTab) ?? false
         toolbarController.updateLayout(
             chromeMode: browserLayout.chromeMode,
-            isToolbarEnabled: !isShowingFullscreenMedia,
+            isToolbarEnabled: !isShowingFullscreenMedia && !isStandalone,
             extendsContentBehindToolbar: showsHomepage
         )
         homepageOverlayCoordinator.updateVisibleContentInsets()
@@ -566,6 +575,14 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     func applyBrowserLayout(animated: Bool = false) {
         if isShowingFullscreenMedia {
             applyFullscreenLayout()
+        } else if isStandalone {
+            // .standard keeps the page background behind the status bar (.fullscreen is black, for video).
+            contentView.applyLayout(
+                ContentView.LayoutState(mode: .standard),
+                topAnchor: view.safeAreaLayoutGuide.topAnchor,
+                bottomAnchor: view.bottomAnchor
+            )
+            tabBar.setVisibility(.hidden, animated: false)
         } else {
             switch browserLayout.chromeMode {
             case .phone:
@@ -651,13 +668,13 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     }
     
     private func applyBrowserChromeLayout(animated: Bool) {
-        let searchState = isShowingFullscreenMedia
+        let searchState = isShowingFullscreenMedia || isStandalone
         ? BrowserChrome.SearchState.inactive
         : (overlayCoordinator.chromeStateForAddressBarScrollDismissal(layout: browserLayout) ?? searchOverlayCoordinator.chromeState)
         browserChrome.apply(state: BrowserChrome.State(
             position: browserLayout.chromePosition,
             mode: browserLayout.chromeMode,
-            presentation: isShowingFullscreenMedia
+            presentation: isShowingFullscreenMedia || isStandalone
             ? .fullscreenMedia
             : (tabOverview.isPresented ? .tabOverview : .browsing),
             search: searchState,

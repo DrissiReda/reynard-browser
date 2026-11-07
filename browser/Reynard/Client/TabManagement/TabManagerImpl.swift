@@ -1424,6 +1424,7 @@ extension TabManagerImplementation: ContentDelegate {
         }
         
         let tab = tabs(for: location.mode)[location.index]
+        tab.webAppManifest = manifest as? [String: Any]
         let tabID = tab.id
         let expectedURL = url.absoluteString
         cancelFaviconTask(for: tabID)
