@@ -91,7 +91,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
         
-        let isWebApp = incomingURL.scheme?.lowercased() == "reynard" && incomingURL.host == "app"
+        let isWebApp = WebApps.contains(resolvedURL)
         webAppLaunchPending = isWebApp
         DispatchQueue.main.async {
             browserViewController.loadViewIfNeeded()

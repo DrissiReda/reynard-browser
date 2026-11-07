@@ -40,5 +40,10 @@
 	<!-- I'm not sure if this will work, but anyways -->
 	<key>com.apple.developer.web-browser</key>
 	<true/>
+	<!-- Add to Home Screen: write a web clip and have SpringBoard show it (see BrowserViewController+WebApp.swift) -->
+	<key>com.apple.springboard.addWebClipToHomeScreen</key>
+	<true/>
+	<key>com.apple.private.WebClips.read-write</key>
+	<true/>
 </dict>
 </plist>
