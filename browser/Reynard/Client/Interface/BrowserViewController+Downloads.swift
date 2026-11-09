@@ -33,6 +33,11 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
             topmostPresenter.present(controller, animated: true)
             return
         }
+        // Packages go straight to the "Open with" list (Sileo, Filza, ...).
+        if fileURL.pathExtension.lowercased() == "deb" {
+            presentOpenWith(fileURL)
+            return
+        }
         if UIApplication.shared.topViewController() is UIAlertController { return }
         AlertPresenter.show(
             title: String(format: NSLocalizedString("\"%@\" Downloaded", comment: "File name"), fileURL.lastPathComponent),
@@ -43,6 +48,9 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
                 },
                 AlertPresenter.Button(title: NSLocalizedString("Open", comment: "")) { [weak self] in
                     self?.openDownloadedFile(fileURL)
+                },
+                AlertPresenter.Button(title: NSLocalizedString("Open With…", comment: "")) { [weak self] in
+                    self?.presentOpenWith(fileURL)
                 },
                 AlertPresenter.Button(title: NSLocalizedString("Close", comment: ""), style: .cancel) {},
             ]
@@ -57,6 +65,18 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
         return top
     }
     
+    /// System "Open with" list of apps that take this file type, e.g. Sileo for .deb.
+    func presentOpenWith(_ fileURL: URL) {
+        let controller = UIDocumentInteractionController(url: fileURL)
+        let presenter = topmostPresenter
+        let rect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.maxY - 1, width: 1, height: 1)
+        // The controller must outlive the menu: keep it on the presenting view.
+        objc_setAssociatedObject(presenter.view as Any, &SingleFilePreviewSource.openWithKey, controller, .OBJC_ASSOCIATION_RETAIN)
+        if !controller.presentOpenInMenu(from: rect, in: presenter.view, animated: true) {
+            openDownloadedFile(fileURL)   // no app takes it: share sheet / preview
+        }
+    }
+
     private func openDownloadedFile(_ fileURL: URL) {
         guard QLPreviewController.canPreview(fileURL as NSURL) else {
             let sheet = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
@@ -78,6 +98,7 @@ extension BrowserViewController: DownloadsCoordinatorDelegate {
 /// Quick Look data source for one file; retained by its preview controller.
 private final class SingleFilePreviewSource: NSObject, QLPreviewControllerDataSource {
     static var key = 0
+    static var openWithKey = 0
     let fileURL: URL
     
     init(fileURL: URL) {

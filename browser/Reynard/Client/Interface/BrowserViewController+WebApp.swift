@@ -4,6 +4,7 @@
 //
 
 import UIKit
+import Darwin
 
 // Web apps: "Add to Home Screen" writes a web clip the way Safari does (private
 // UIWebClip + SpringBoard's addWebClipToHomeScreen, entitlement in
@@ -87,11 +88,25 @@ enum WebClip {
         typealias BoolCall = @convention(c) (AnyObject, Selector) -> Bool
         let create = NSSelectorFromString("createOnDisk")
         guard let imp = clip.method(for: create), unsafeBitCast(imp, to: BoolCall.self)(clip, create) else { return false }
-        // ponytail: SpringBoard logs but does not return an entitlement failure; without the
-        // entitlement the icon shows after the next respring instead of right away.
-        typealias AddCall = @convention(c) (AnyObject, Selector, NSString) -> Int32
-        let add = NSSelectorFromString("addWebClipToHomeScreen:")
-        if let imp = UIApplication.shared.method(for: add) { _ = unsafeBitCast(imp, to: AddCall.self)(UIApplication.shared, add, identifier as NSString) }
+        // SpringBoard reads the clip from /var/mobile/Library/WebClips. If UIKit wrote it into the
+        // app container instead, copy it there (the app runs without a sandbox).
+        let path = (cls.perform(NSSelectorFromString("pathForWebClipWithIdentifier:"), with: identifier)?
+            .takeUnretainedValue() as? String) ?? ""
+        let shared = "/var/mobile/Library/WebClips/\(identifier).webclip"
+        let fm = FileManager.default
+        if path != shared, fm.fileExists(atPath: path), !fm.fileExists(atPath: shared) {
+            try? fm.createDirectory(atPath: "/var/mobile/Library/WebClips", withIntermediateDirectories: true)
+            try? fm.copyItem(atPath: path, toPath: shared)
+        }
+        // Same call UIApplication.addWebClipToHomeScreen: makes, which drops the result.
+        var kr: Int32 = -1
+        if let h = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_NOW),
+           let port = dlsym(h, "SBSSpringBoardServerPort"), let add = dlsym(h, "SBAddWebClipToHomeScreen") {
+            typealias Port = @convention(c) () -> mach_port_t
+            typealias Add = @convention(c) (mach_port_t, UnsafePointer<CChar>) -> kern_return_t
+            kr = identifier.withCString { unsafeBitCast(add, to: Add.self)(unsafeBitCast(port, to: Port.self)(), $0) }
+        }
+        DevLog.post("webclip \(identifier) path=\(path) exists=\(fm.fileExists(atPath: path)) shared=\(fm.fileExists(atPath: shared)) kr=\(kr)")
         return true
     }
 
