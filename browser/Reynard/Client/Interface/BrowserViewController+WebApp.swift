@@ -38,13 +38,20 @@ extension BrowserViewController {
         alert.addTextField { $0.text = name; $0.clearButtonMode = .whileEditing }
         alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel))
         alert.addAction(UIAlertAction(title: NSLocalizedString("Add", comment: ""), style: .default) { [weak self] _ in
-            let label = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespaces)
+            let typed = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespaces)
+            let label = (typed?.isEmpty == false ? typed : nil) ?? name
             WebApps.add(startURL)
-            let ok = WebClip.install(label: (label?.isEmpty == false ? label : nil) ?? name, startURL: startURL, icon: tab.favicon)
-            if !ok {
-                let fail = UIAlertController(title: NSLocalizedString("Could not add the icon", comment: ""), message: nil, preferredStyle: .alert)
-                fail.addAction(UIAlertAction(title: "OK", style: .default))
-                self?.present(fail, animated: true)
+            // The tab often has no icon loaded yet: fetch the site's largest (manifest or
+            // apple-touch-icon) first, else the clip shows a blank tile.
+            Task { @MainActor in
+                let fetched = await FaviconStore.shared.favicon(for: url, webAppManifest: manifest)
+                let icon = fetched ?? tab.favicon ?? WebClip.letterIcon(label)
+                let ok = WebClip.install(label: label, startURL: startURL, icon: icon)
+                if !ok {
+                    let fail = UIAlertController(title: NSLocalizedString("Could not add the icon", comment: ""), message: nil, preferredStyle: .alert)
+                    fail.addAction(UIAlertAction(title: "OK", style: .default))
+                    self?.present(fail, animated: true)
+                }
             }
         })
         present(alert, animated: true)
@@ -107,8 +114,21 @@ enum WebClip {
             typealias Add = @convention(c) (mach_port_t, UnsafePointer<CChar>) -> kern_return_t
             kr = identifier.withCString { unsafeBitCast(add, to: Add.self)(unsafeBitCast(port, to: Port.self)(), $0) }
         }
-        DevLog.post("webclip \(identifier) path=\(path) exists=\(fm.fileExists(atPath: path)) shared=\(fm.fileExists(atPath: shared)) kr=\(kr)")
+        DevLog.post("webclip \(identifier) icon=\(icon.map { "\(Int($0.size.width * $0.scale))px" } ?? "none") path=\(path) exists=\(fm.fileExists(atPath: path)) shared=\(fm.fileExists(atPath: shared)) kr=\(kr)")
         return true
+    }
+
+    /// Fallback tile when the site has no usable icon: first letter on a gray square.
+    static func letterIcon(_ label: String) -> UIImage {
+        let side: CGFloat = 180
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+            UIColor.systemGray.setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: side, height: side))
+            let text = String(label.prefix(1)).uppercased() as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 100, weight: .semibold), .foregroundColor: UIColor.white]
+            let size = text.size(withAttributes: attrs)
+            text.draw(at: CGPoint(x: (side - size.width) / 2, y: (side - size.height) / 2), withAttributes: attrs)
+        }
     }
 
     /// Home screen icons need an opaque square image.
