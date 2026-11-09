@@ -73,7 +73,8 @@ enum WebClip {
     /// Writes ~/Library/WebClips/<id>.webclip (UIWebClip createOnDisk) and asks
     /// SpringBoard to show it. Returns false when UIKit refused to write it.
     static func install(label: String, startURL: URL, icon: UIImage?) -> Bool {
-        let identifier = UUID().uuidString
+        // SpringBoard rejects (KERN_INVALID_ARGUMENT) any identifier that is not 32 hex characters.
+        let identifier = UUID().uuidString.replacingOccurrences(of: "-", with: "")
         guard let cls = NSClassFromString("UIWebClip") as? NSObject.Type,
               let clip = cls.perform(NSSelectorFromString("webClipWithIdentifier:"), with: identifier)?
                 .takeUnretainedValue() as? NSObject else { return false }
