@@ -59,7 +59,7 @@ final class TabManagerImplementation: NSObject, TabManager {
     private lazy var systemMediaSession = SystemMediaSession(playbackObserver: self)
     
     private weak var delegate: TabManagerDelegate?
-    private let store: TabManagementStore
+    private let store: TabManagementStore? // nil: web app, no persistence
     private let faviconStore: FaviconStore
     private let historyStore: HistoryStore
     let sessionManager: SessionManager
@@ -75,7 +75,7 @@ final class TabManagerImplementation: NSObject, TabManager {
     init(
         delegate: TabManagerDelegate?,
         sessionManager: SessionManager,
-        store: TabManagementStore = .shared,
+        store: TabManagementStore? = .shared,
         faviconStore: FaviconStore = .shared,
         historyStore: HistoryStore = .shared
     ) {
@@ -130,7 +130,7 @@ final class TabManagerImplementation: NSObject, TabManager {
     }
     
     private func persistState() {
-        store.persistTabs(
+        store?.persistTabs(
             regularTabs: regularTabs,
             privateTabs: privateTabs,
             selectedRegularTabID: regularTabs[safe: selectedRegularTabIndex]?.id,
@@ -432,8 +432,8 @@ final class TabManagerImplementation: NSObject, TabManager {
             return true
         }
         
-        let snapshot = store.currentSnapshot()
-        guard !snapshot.regularTabs.isEmpty || !snapshot.privateTabs.isEmpty else {
+        guard let snapshot = store?.currentSnapshot(),
+              !snapshot.regularTabs.isEmpty || !snapshot.privateTabs.isEmpty else {
             return false
         }
         
@@ -540,7 +540,7 @@ final class TabManagerImplementation: NSObject, TabManager {
     
     @discardableResult
     func restoreRecentlyClosedTab(id: UUID) -> Bool {
-        guard let snapshot = store.takeRecentlyClosedTab(id: id) else {
+        guard let snapshot = store?.takeRecentlyClosedTab(id: id) else {
             return false
         }
         
@@ -647,7 +647,7 @@ final class TabManagerImplementation: NSObject, TabManager {
             return
         }
         
-        store.saveRecentlyClosedTab(
+        store?.saveRecentlyClosedTab(
             id: tab.id,
             title: tab.title,
             url: url,
@@ -1193,7 +1193,7 @@ final class TabManagerImplementation: NSObject, TabManager {
         
         let tab = tabs(for: mode)[index]
         tab.thumbnail = image
-        store.persistThumbnail(image, for: tab.id)
+        store?.persistThumbnail(image, for: tab.id)
         notifyUpdate(at: index, mode: mode, reason: .thumbnail)
     }
     
