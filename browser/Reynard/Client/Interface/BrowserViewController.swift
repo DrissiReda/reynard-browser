@@ -24,10 +24,15 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     
     // MARK: - State
     
-    let sessionManager = SessionManager()
+    let sessionManager: SessionManager
+    /// Home screen web app scene (own cookies, no tab persistence), else nil.
+    let webAppID: String?
+    let webAppStartURL: URL?
+    var webAppSplash: UIView?
     lazy var tabManager = TabManagerImplementation(
         delegate: self,
-        sessionManager: sessionManager
+        sessionManager: sessionManager,
+        store: webAppID == nil ? TabManagementStore.shared : nil
     )
     private var lockedOrientations: UIInterfaceOrientationMask?
     private var pendingOrientationRequest: (
@@ -98,6 +103,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     // MARK: - Lifecycle
     
     override var preferredStatusBarStyle: UIStatusBarStyle {
+        if webAppID != nil {
+            return webAppStatusBarStyle
+        }
         if #available(iOS 26.0, *) {
             return .default
         }
@@ -142,8 +150,17 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         return preferredInterfaceOrientation(allowedBy: allowedOrientations) ?? .portrait
     }
     
-    init(canHostSidebar: Bool = true) {
-        self.allowsSidebarHosting = canHostSidebar
+    init(canHostSidebar: Bool = true, webAppID: String? = nil, startURL: URL? = nil) {
+        self.allowsSidebarHosting = canHostSidebar && webAppID == nil
+        self.webAppID = webAppID
+        self.webAppStartURL = startURL
+        self.sessionManager = webAppID.map {
+            SessionManager(
+                sessionSettings: SessionSettingsManager(sessionContextId: "gvctx" + $0.lowercased()),
+                tabStore: nil
+            )
+        } ?? SessionManager()
+        self.isStandalone = webAppID != nil // set before viewDidLoad
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -171,15 +188,22 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         contextMenuCoordinator.configure()
         downloadsCoordinator.startObservingStore()
         downloadsCoordinator.syncToolbarButtonState()
-        tabOverview.restoreMode(TabOverview.Mode(tabMode: TabManagementStore.shared.preferredRestoredMode()))
+        if webAppID == nil {
+            tabOverview.restoreMode(TabOverview.Mode(tabMode: TabManagementStore.shared.preferredRestoredMode()))
+        }
         syncBrowserNavigationChrome(animated: false)
         browserChrome.syncSidebarButton(splitViewController: splitViewController)
         applyUpdateMenuButtonBadge()
         
-        tabManager.createInitialTab()
+        if webAppID != nil {
+            startWebApp()
+        } else {
+            tabManager.createInitialTab()
+        }
         refreshAddressBar()
         homepageOverlayCoordinator.updatePresentation(animated: false)
         
+        if webAppID == nil {
         Task { @MainActor [weak self] in
             guard let self else {
                 return
@@ -190,8 +214,10 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
                 self.sessionManager.setAddonTabActive(true, for: session)
             }
         }
+        }
         
         updateBrowserLayout(animated: false)
+        if webAppID != nil { installWebAppSplash() }
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -988,6 +1014,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     }
     
     @objc private func keyboardFrameWillChange(_ notification: Notification) {
+        guard webAppID == nil || view.window?.windowScene?.activationState == .foregroundActive else {
+            return
+        }
         guard let frameValue = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue else {
             return
         }
@@ -1046,6 +1075,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     }
     
     @objc private func keyboardWillHide(_ notification: Notification) {
+        guard webAppID == nil || view.window?.windowScene?.activationState == .foregroundActive else {
+            return
+        }
         toolbarController.unlock(for: .inputRelocation)
         let animation = keyboardAnimation(from: notification)
         if browserChrome.isShowingKeyboardDismissal {
@@ -1280,7 +1312,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     }
     
     func startScreenOrientationHandling() {
-        guard allowsSidebarHosting else {
+        guard allowsSidebarHosting || webAppID != nil else {
             return
         }
         

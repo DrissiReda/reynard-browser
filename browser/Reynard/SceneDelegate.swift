@@ -10,12 +10,27 @@ import UIKit
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var webAppLaunchPending = false
+    private var isWebAppScene = false
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         AppleSSOListener.shared.register()
         
-        let browserViewController = BrowserViewController()
+        let webAppPrefix = "sceneID:com.apple.webapp-"
+        let browserViewController: BrowserViewController
+        if session.persistentIdentifier.hasPrefix(webAppPrefix) {
+            let clipID = String(session.persistentIdentifier.dropFirst(webAppPrefix.count))
+            let launchURL = connectionOptions.urlContexts
+                .compactMap { resolvedBrowserURL(from: $0.url) }
+                .first { $0.scheme?.lowercased() == "https" }
+            isWebAppScene = true
+            browserViewController = BrowserViewController(
+                webAppID: clipID,
+                startURL: launchURL ?? WebApps.info(clipID).url
+            )
+        } else {
+            browserViewController = BrowserViewController()
+        }
         browserViewController.sessionManager.setApplicationForeground(scene.activationState != .background)
         
         let window = UIWindow(windowScene: windowScene)
@@ -24,7 +39,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.makeKeyAndVisible()
         self.window = window
         
-        handleIncomingURLContexts(connectionOptions.urlContexts)
+        if !isWebAppScene {
+            handleIncomingURLContexts(connectionOptions.urlContexts)
+        }
     }
     
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -67,7 +84,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         browserViewController?.sessionManager.setApplicationForeground(true)
         // Opened from Reynard's own icon: back to the browser. A web clip
         // launch re-enters web app mode in scene(_:openURLContexts:).
-        if !webAppLaunchPending {
+        if !webAppLaunchPending && !isWebAppScene {
             browserViewController?.isStandalone = false
         }
         webAppLaunchPending = false
@@ -80,6 +97,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     private func handleIncomingURLContexts(_ urlContexts: Set<UIOpenURLContext>) {
         guard let incomingURL = urlContexts.first?.url else {
+            return
+        }
+        if isWebAppScene {
+            if let url = resolvedBrowserURL(from: incomingURL),
+               let bvc = window?.rootViewController as? BrowserViewController {
+                bvc.loadInWebApp(url)
+            }
             return
         }
         handleIncomingURL(incomingURL)

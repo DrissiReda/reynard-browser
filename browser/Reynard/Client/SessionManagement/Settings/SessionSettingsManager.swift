@@ -12,12 +12,15 @@ final class SessionSettingsManager {
     let websiteMode: WebsiteModeSettingManager
     let pageZoom: PageZoomSettingManager
     let language: LanguageSettingManager
+    let sessionContextId: String?
     
     init(
         websiteMode: WebsiteModeSettingManager = WebsiteModeSettingManager(),
         pageZoom: PageZoomSettingManager = PageZoomSettingManager(),
-        language: LanguageSettingManager = LanguageSettingManager()
+        language: LanguageSettingManager = LanguageSettingManager(),
+        sessionContextId: String? = nil
     ) {
+        self.sessionContextId = sessionContextId
         self.websiteMode = websiteMode
         self.pageZoom = pageZoom
         self.language = language
@@ -29,14 +32,16 @@ final class SessionSettingsManager {
             return GeckoSessionSettings(
                 websiteMode: .mobile,
                 pageZoom: .default,
-                language: languageSetting
+                language: languageSetting,
+                sessionContextId: sessionContextId
             )
         }
         
         return GeckoSessionSettings(
             websiteMode: websiteMode.setting(for: url, tabID: tabID),
             pageZoom: pageZoom.setting(for: url),
-            language: languageSetting
+            language: languageSetting,
+            sessionContextId: sessionContextId
         )
     }
     

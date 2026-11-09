@@ -220,7 +220,7 @@ public class GeckoSession {
             "allowJavascript": true,
             "fullAccessibilityTree": false,
             "isExtensionPopup": isAddonPopup,
-            "sessionContextId": nil,
+            "sessionContextId": sessionSettings.sessionContextId,
             "unsafeSessionContextId": nil,
         ]
         

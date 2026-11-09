@@ -12,7 +12,7 @@ import UIKit
 final class SessionManager {
     private let sessionSettings: SessionSettingsManager
     private let history: NavigationHistory
-    private let tabStore: TabManagementStore
+    private let tabStore: TabManagementStore?
     private let permissionStore: SitePermissionStore
     let universalLinkManager = UniversalLinkManager()
     let trackingProtection: TrackingProtectionManager
@@ -35,7 +35,7 @@ final class SessionManager {
     init(
         sessionSettings: SessionSettingsManager = SessionSettingsManager(),
         history: NavigationHistory = NavigationHistory(),
-        tabStore: TabManagementStore = .shared,
+        tabStore: TabManagementStore? = .shared,
         permissionStore: SitePermissionStore = .shared,
         trackingProtection: TrackingProtectionManager = TrackingProtectionManager()
     ) {
@@ -164,7 +164,7 @@ final class SessionManager {
                 for session in sessions where session.isOpen() {
                     try await session.flushSessionState()
                 }
-                tabStore.flushPendingWrites()
+                tabStore?.flushPendingWrites()
             } catch {
                 NSLog("Failed to persist session state before suspension: %@", "\(error)")
             }
