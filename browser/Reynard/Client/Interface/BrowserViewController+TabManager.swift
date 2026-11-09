@@ -10,6 +10,10 @@ import UIKit
 
 extension BrowserViewController: TabManagerDelegate {
     func tabManagerDidChangeTabs(_ tabManager: TabManager) {
+        if webAppID != nil, tabManager.selectedTab == nil {
+            startWebApp() // never leave a web app without a tab
+            return
+        }
         if let selectedTab = tabManager.selectedTab {
             if !contentView.isDisplaying(session: selectedTab.session) {
                 browserChrome.addressBar.clearKeyCommandHint()
@@ -51,6 +55,7 @@ extension BrowserViewController: TabManagerDelegate {
     
     func tabManager(_ tabManager: TabManager, didFinishLoading session: GeckoSession) {
         contentView.didFinishLoading(session: session)
+        dismissWebAppSplash()
     }
     
     func tabManager(_ tabManager: TabManager, didSelectTabAt index: Int, previousIndex: Int?) {

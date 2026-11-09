@@ -83,12 +83,16 @@ public struct GeckoSessionSettings: Equatable {
     public let websiteMode: WebsiteModeSetting
     public let pageZoom: PageZoomSetting
     public let language: LanguageSetting
+    /// Separate cookie/storage jar (web apps). Gecko format: gvctx[a-f0-9]+.
+    public let sessionContextId: String?
     
     public init(
         websiteMode: WebsiteModeSetting,
         pageZoom: PageZoomSetting,
-        language: LanguageSetting
+        language: LanguageSetting,
+        sessionContextId: String? = nil
     ) {
+        self.sessionContextId = sessionContextId
         self.websiteMode = websiteMode
         self.pageZoom = pageZoom
         self.language = language

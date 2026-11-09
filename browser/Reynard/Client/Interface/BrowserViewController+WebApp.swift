@@ -25,6 +25,67 @@ extension BrowserViewController {
         isStandalone = true
     }
 
+    /// Standalone web app: its single tab, recreated if ever closed.
+    func startWebApp() {
+        let index = tabManager.addTab(selecting: true)
+        if let url = webAppStartURL {
+            tabManager.browse(to: url.absoluteString, in: tabManager.regularTabs[index])
+        }
+    }
+
+    func loadInWebApp(_ url: URL) {
+        loadViewIfNeeded()
+        guard let tab = tabManager.selectedTab else { return startWebApp() }
+        tabManager.browse(to: url.absoluteString, in: tab)
+    }
+
+    private var webAppInfo: WebApps.Info { WebApps.info(webAppID ?? "") }
+
+    var webAppStatusBarStyle: UIStatusBarStyle {
+        let color = UIColor(cssHex: webAppInfo.theme) ?? UIColor(cssHex: webAppInfo.background)
+        guard let color else { return .default }
+        return color.isDarkCSS ? .lightContent : .darkContent
+    }
+
+    /// Safari-like launch screen, removed on first page load (or after 8 s).
+    func installWebAppSplash() {
+        let info = webAppInfo
+        view.backgroundColor = UIColor(cssHex: info.theme) ?? .systemBackground
+        let splash = UIView(frame: view.bounds)
+        splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        splash.backgroundColor = UIColor(cssHex: info.background) ?? .systemBackground
+        let icon = UIImageView(image: WebClip.icon(for: webAppID ?? ""))
+        icon.contentMode = .scaleAspectFill
+        icon.layer.cornerRadius = 27
+        icon.layer.cornerCurve = .continuous
+        icon.clipsToBounds = true
+        let label = UILabel()
+        label.text = info.name
+        label.font = .systemFont(ofSize: 17, weight: .medium)
+        label.textColor = (UIColor(cssHex: info.background)?.isDarkCSS ?? false) ? .white : .black
+        let stack = UIStackView(arrangedSubviews: [icon, label])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 14
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        splash.addSubview(stack)
+        NSLayoutConstraint.activate([
+            icon.widthAnchor.constraint(equalToConstant: 120),
+            icon.heightAnchor.constraint(equalToConstant: 120),
+            stack.centerXAnchor.constraint(equalTo: splash.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: splash.centerYAnchor),
+        ])
+        view.addSubview(splash)
+        webAppSplash = splash
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in self?.dismissWebAppSplash() }
+    }
+
+    func dismissWebAppSplash() {
+        guard let splash = webAppSplash else { return }
+        webAppSplash = nil
+        UIView.animate(withDuration: 0.25, animations: { splash.alpha = 0 }) { _ in splash.removeFromSuperview() }
+    }
+
     func addToHomeScreen(tab: Tab, url: URL) {
         let manifest = tab.webAppManifest ?? [:]
         let name = (manifest["short_name"] as? String) ?? (manifest["name"] as? String) ?? tab.title
@@ -46,8 +107,12 @@ extension BrowserViewController {
             Task { @MainActor in
                 let fetched = await FaviconStore.shared.favicon(for: url, webAppManifest: manifest)
                 let icon = fetched ?? tab.favicon ?? WebClip.letterIcon(label)
-                let ok = WebClip.install(label: label, startURL: startURL, icon: icon)
-                if !ok {
+                if let clipID = WebClip.install(label: label, startURL: startURL, icon: icon) {
+                    WebApps.setInfo(clipID, WebApps.Info(
+                        url: startURL, name: label,
+                        background: manifest["background_color"] as? String,
+                        theme: manifest["theme_color"] as? String))
+                } else {
                     let fail = UIAlertController(title: NSLocalizedString("Could not add the icon", comment: ""), message: nil, preferredStyle: .alert)
                     fail.addAction(UIAlertAction(title: "OK", style: .default))
                     self?.present(fail, animated: true)
@@ -69,6 +134,25 @@ enum WebApps {
     static func contains(_ url: URL) -> Bool {
         (UserDefaults.standard.stringArray(forKey: key) ?? []).contains(normalize(url))
     }
+
+    struct Info {
+        var url: URL?
+        var name: String
+        var background: String?
+        var theme: String?
+    }
+    private static let infoKey = "webAppInfo"
+    static func setInfo(_ id: String, _ info: Info) {
+        var all = UserDefaults.standard.dictionary(forKey: infoKey) as? [String: [String: String]] ?? [:]
+        all[id] = ["url": info.url?.absoluteString ?? "", "name": info.name,
+                   "background": info.background ?? "", "theme": info.theme ?? ""]
+        UserDefaults.standard.set(all, forKey: infoKey)
+    }
+    static func info(_ id: String) -> Info {
+        let d = (UserDefaults.standard.dictionary(forKey: infoKey) as? [String: [String: String]])?[id] ?? [:]
+        return Info(url: d["url"].flatMap(URL.init(string:)), name: d["name"] ?? "",
+                    background: d["background"], theme: d["theme"])
+    }
     private static func normalize(_ url: URL) -> String {
         var s = url.absoluteString
         if s.hasSuffix("/") { s.removeLast() }
@@ -78,13 +162,13 @@ enum WebApps {
 
 enum WebClip {
     /// Writes ~/Library/WebClips/<id>.webclip (UIWebClip createOnDisk) and asks
-    /// SpringBoard to show it. Returns false when UIKit refused to write it.
-    static func install(label: String, startURL: URL, icon: UIImage?) -> Bool {
+    /// SpringBoard to show it. Returns the clip id, nil when UIKit refused to write it.
+    static func install(label: String, startURL: URL, icon: UIImage?) -> String? {
         // SpringBoard rejects (KERN_INVALID_ARGUMENT) any identifier that is not 32 hex characters.
         let identifier = UUID().uuidString.replacingOccurrences(of: "-", with: "")
         guard let cls = NSClassFromString("UIWebClip") as? NSObject.Type,
               let clip = cls.perform(NSSelectorFromString("webClipWithIdentifier:"), with: identifier)?
-                .takeUnretainedValue() as? NSObject else { return false }
+                .takeUnretainedValue() as? NSObject else { return nil }
         clip.setValue(startURL, forKey: "pageURL")
         clip.setValue(label, forKey: "title")
         clip.setValue(Bundle.main.bundleIdentifier, forKey: "applicationBundleIdentifier")
@@ -95,7 +179,7 @@ enum WebClip {
         }
         typealias BoolCall = @convention(c) (AnyObject, Selector) -> Bool
         let create = NSSelectorFromString("createOnDisk")
-        guard let imp = clip.method(for: create), unsafeBitCast(imp, to: BoolCall.self)(clip, create) else { return false }
+        guard let imp = clip.method(for: create), unsafeBitCast(imp, to: BoolCall.self)(clip, create) else { return nil }
         // SpringBoard reads the clip from /var/mobile/Library/WebClips. If UIKit wrote it into the
         // app container instead, copy it there (the app runs without a sandbox).
         let path = (cls.perform(NSSelectorFromString("pathForWebClipWithIdentifier:"), with: identifier)?
@@ -107,15 +191,21 @@ enum WebClip {
             try? fm.copyItem(atPath: path, toPath: shared)
         }
         // Same call UIApplication.addWebClipToHomeScreen: makes, which drops the result.
-        var kr: Int32 = -1
         if let h = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_NOW),
            let port = dlsym(h, "SBSSpringBoardServerPort"), let add = dlsym(h, "SBAddWebClipToHomeScreen") {
             typealias Port = @convention(c) () -> mach_port_t
             typealias Add = @convention(c) (mach_port_t, UnsafePointer<CChar>) -> kern_return_t
-            kr = identifier.withCString { unsafeBitCast(add, to: Add.self)(unsafeBitCast(port, to: Port.self)(), $0) }
+            _ = identifier.withCString { unsafeBitCast(add, to: Add.self)(unsafeBitCast(port, to: Port.self)(), $0) }
         }
-        DevLog.post("webclip \(identifier) icon=\(icon.map { "\(Int($0.size.width * $0.scale))px" } ?? "none") path=\(path) exists=\(fm.fileExists(atPath: path)) shared=\(fm.fileExists(atPath: shared)) kr=\(kr)")
-        return true
+        return identifier
+    }
+
+    /// The clip's icon, read back from the private UIWebClip.
+    static func icon(for identifier: String) -> UIImage? {
+        guard let cls = NSClassFromString("UIWebClip") as? NSObject.Type,
+              let clip = cls.perform(NSSelectorFromString("webClipWithIdentifier:"), with: identifier)?
+                .takeUnretainedValue() as? NSObject else { return nil }
+        return clip.value(forKey: "iconImage") as? UIImage
     }
 
     /// Fallback tile when the site has no usable icon: first letter on a gray square.
@@ -168,5 +258,22 @@ final class AddToHomeScreenActivity: UIActivity {
 
     override func perform() {
         activityDidFinish(true)
+    }
+}
+
+extension UIColor {
+    /// CSS #rgb / #rrggbb.
+    convenience init?(cssHex: String?) {
+        guard var h = cssHex?.trimmingCharacters(in: .whitespaces), h.hasPrefix("#") else { return nil }
+        h.removeFirst()
+        if h.count == 3 { h = h.map { "\($0)\($0)" }.joined() }
+        guard h.count == 6, let v = UInt32(h, radix: 16) else { return nil }
+        self.init(red: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+    }
+
+    var isDarkCSS: Bool {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        getRed(&r, green: &g, blue: &b, alpha: nil)
+        return 0.299 * r + 0.587 * g + 0.114 * b < 0.5
     }
 }
