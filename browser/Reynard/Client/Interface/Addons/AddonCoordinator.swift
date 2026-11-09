@@ -71,10 +71,10 @@ final class AddonCoordinator: NSObject, AddonEmbedderDelegate {
     
     // MARK: - Runtime Lifecycle
     
-    func start() async {
+    func start(checksForUpdates: Bool = true) async {
         AddonRuntime.shared.delegate = self
         _ = try? await AddonRuntime.shared.list()
-        updateCoordinator.start()
+        if checksForUpdates { updateCoordinator.start() }
         delegate?.refreshAddonChrome(self)
 #if targetEnvironment(simulator)
         Task { @MainActor in

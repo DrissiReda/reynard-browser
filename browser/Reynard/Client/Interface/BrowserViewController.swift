@@ -203,17 +203,17 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
         refreshAddressBar()
         homepageOverlayCoordinator.updatePresentation(animated: false)
         
-        if webAppID == nil {
+        // Web apps get the addon UI too (Bitwarden popup, passkeys); the update check runs only
+        // in the main browser. Whichever window is active owns the addon UI (see activateAddonUI).
         Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             
-            await self.addonCoordinator.start()
+            await self.addonCoordinator.start(checksForUpdates: self.webAppID == nil)
             if let session = self.tabManager.selectedTab?.session {
                 self.sessionManager.setAddonTabActive(true, for: session)
             }
-        }
         }
         
         updateBrowserLayout(animated: false)
