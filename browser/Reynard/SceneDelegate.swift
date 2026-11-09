@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import GeckoView
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -56,6 +57,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
         
         browserViewController.startScreenOrientationHandling()
+        // One addon UI owner at a time: the window in front (browser or a web app).
+        AddonRuntime.shared.delegate = browserViewController.addonCoordinator
         browserViewController.sessionManager.applicationDidBecomeActive()
         browserViewController.tabManager.applicationDidBecomeActive()
     }
