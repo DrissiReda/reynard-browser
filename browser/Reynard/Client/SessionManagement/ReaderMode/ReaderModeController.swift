@@ -242,11 +242,11 @@ final class ReaderModeController: AddonMessageDelegate, AddonPortDelegate {
             return
         }
         
-        guard port.sender.session != nil else {
+        guard let session = port.sender.session else {
             port.disconnect()
             return
         }
-        let sessionID = port.sender.sessionIdentifier
+        let sessionID = ObjectIdentifier(session)
         port.delegate = self
         switch port.name {
         case Self.contentPortName where port.sender.environment == .contentScript:
@@ -300,7 +300,7 @@ final class ReaderModeController: AddonMessageDelegate, AddonPortDelegate {
     }
     
     func addonPortDidDisconnect(_ port: AddonPort) {
-        let sessionID = port.sender.sessionIdentifier
+        guard let sessionID = port.sender.sessionIdentifier else { return }
         if contentPorts[sessionID] === port {
             contentPorts.removeValue(forKey: sessionID)
         }

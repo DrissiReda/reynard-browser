@@ -8,7 +8,6 @@
 #ifndef Reynard_Bridging_Header_h
 #define Reynard_Bridging_Header_h
 
-#import "BackgroundKeepAlive.h"
 #import "ExtensionBridge.h"
 #import "GeckoRuntimeBridge.h"
 #import "JITEnabler.h"

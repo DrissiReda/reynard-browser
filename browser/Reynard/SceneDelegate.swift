@@ -15,8 +15,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         
         let browserViewController = BrowserViewController()
-        WebNotificationManager.shared.browserViewController = browserViewController
-        WebNotificationManager.shared.start()
         browserViewController.sessionManager.setApplicationForeground(scene.activationState != .background)
         
         let window = UIWindow(windowScene: windowScene)

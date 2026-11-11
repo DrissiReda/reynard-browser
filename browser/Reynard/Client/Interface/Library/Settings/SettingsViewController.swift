@@ -13,6 +13,7 @@ final class SettingsViewController: SettingsTableViewController {
         case jit
         case general
         case privacy
+        case bitwarden
         case dataManagement
         case advanced
         case about
@@ -27,6 +28,8 @@ final class SettingsViewController: SettingsTableViewController {
                 return SettingsSectionText(headerTitle: NSLocalizedString("General", comment: ""))
             case .privacy:
                 return SettingsSectionText(headerTitle: NSLocalizedString("Privacy", comment: ""))
+            case .bitwarden:
+                return SettingsSectionText(headerTitle: NSLocalizedString("Bitwarden", comment: ""))
             case .dataManagement:
                 return SettingsSectionText(headerTitle: NSLocalizedString("Data Management", comment: ""))
             case .advanced:
@@ -41,6 +44,7 @@ final class SettingsViewController: SettingsTableViewController {
     private let jitSection = JITSettingsSection()
     private let generalSection = GeneralSettingsSection()
     private let privacySection = PrivacySettingsSection()
+    private let bitwardenSection = BitwardenSettingsSection()
     private let dataManagementSection = DataManagementSettingsSection()
     private let advancedSection = AdvancedSettingsSection()
     private let aboutSection = AboutSettingsSection()
@@ -61,7 +65,11 @@ final class SettingsViewController: SettingsTableViewController {
         if unsandboxed {
             hiddenSections.insert(.jit)
         }
-        
+
+        if !bitwardenSection.isAvailable {
+            hiddenSections.insert(.bitwarden)
+        }
+
         return Section.allCases.filter { !hiddenSections.contains($0) }
     }
     
@@ -108,6 +116,8 @@ final class SettingsViewController: SettingsTableViewController {
             return generalSection.rowCount
         case .privacy:
             return privacySection.rowCount
+        case .bitwarden:
+            return bitwardenSection.rowCount
         case .dataManagement:
             return dataManagementSection.rowCount
         case .advanced:
@@ -135,6 +145,8 @@ final class SettingsViewController: SettingsTableViewController {
             return generalSection.cell(at: indexPath.row)
         case .privacy:
             return privacySection.cell(at: indexPath.row)
+        case .bitwarden:
+            return bitwardenSection.cell(at: indexPath.row)
         case .dataManagement:
             return dataManagementSection.cell(at: indexPath.row)
         case .advanced:
@@ -170,6 +182,8 @@ final class SettingsViewController: SettingsTableViewController {
             generalSection.selectRow(at: indexPath.row, from: self)
         case .privacy:
             privacySection.selectRow(at: indexPath.row, from: self)
+        case .bitwarden:
+            bitwardenSection.selectRow(at: indexPath.row, from: self)
         case .dataManagement:
             dataManagementSection.selectRow(at: indexPath.row, from: self)
         case .advanced:
