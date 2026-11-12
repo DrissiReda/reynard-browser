@@ -54,6 +54,9 @@ extension TabManager {
     @discardableResult
     func openExternalURL(_ url: URL) -> Tab? {
         let tab = tabForExternalLoad()
+        if !tab.isPrivate {
+            (self as? TabManagerImplementation)?.sessionManager.universalLinkManager.allowRedirectHandoff(in: tab.session)
+        }
         browse(to: url.absoluteString, in: tab)
         return tab
     }

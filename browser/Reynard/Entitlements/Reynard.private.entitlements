@@ -43,6 +43,8 @@
 	<!-- Add to Home Screen: write a web clip and have SpringBoard show it (see BrowserViewController+WebApp.swift) -->
 	<key>com.apple.springboard.addWebClipToHomeScreen</key>
 	<true/>
+	<key>com.apple.private.canGetAppLinkInfo</key>
+	<true/>
 	<key>com.apple.private.WebClips.read-write</key>
 	<true/>
 </dict>

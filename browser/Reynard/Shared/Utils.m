@@ -17,6 +17,10 @@
 #import <spawn.h>
 #import <sys/wait.h>
 
+@interface NSObject (ReynardAppLink)
++ (void)getAppLinkWithURL:(NSURL *)url completionHandler:(void (^)(id link, NSError *error))completion;
+@end
+
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT 6
 #define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
 
@@ -87,4 +91,20 @@ int spawnRoot(NSString *path, NSArray<NSString *> *args) {
     } while (!WIFEXITED(status) && !WIFSIGNALED(status));
     
     return WEXITSTATUS(status);
+}
+
+void appLinkTargetName(NSURL *url, void (^completion)(NSString * _Nullable name)) {
+    Class appLink = NSClassFromString(@"LSAppLink");
+    if (![appLink respondsToSelector:@selector(getAppLinkWithURL:completionHandler:)]) {
+        completion(nil);
+        return;
+    }
+    [appLink getAppLinkWithURL:url completionHandler:^(id link, NSError *error) {
+        NSString *name = nil;
+        @try {
+            id name_ = [[link valueForKey:@"targetApplicationProxy"] valueForKey:@"localizedName"];
+            if ([name_ isKindOfClass:NSString.class]) name = name_;
+        } @catch (NSException *exception) {}
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(name); });
+    }];
 }

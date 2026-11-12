@@ -49,6 +49,8 @@ final class UniversalLinkManager {
     
     private var handoffTasks: [HandoffKey: Task<Bool, Never>] = [:]
     private var failedHandoffs = Set<HandoffKey>()
+    // Sessions whose current navigation started from a tap or an incoming link, so its redirects may open an app.
+    private var redirectHandoffSessions = Set<ObjectIdentifier>()
     
     func decideHandoff(
         for request: LoadRequest,
@@ -82,7 +84,13 @@ final class UniversalLinkManager {
                 return .allow
             }
         } else {
-            guard request.isUserInitiatedNavigation, URLUtils.isWebURL(url) else {
+            let sessionID = ObjectIdentifier(session)
+            if request.isUserInitiatedNavigation && !request.isRedirect {
+                redirectHandoffSessions.insert(sessionID)
+            }
+            let fromUser = request.isUserInitiatedNavigation
+                || (request.isRedirect && redirectHandoffSessions.contains(sessionID))
+            guard fromUser, URLUtils.isWebURL(url) else {
                 return .allow
             }
         }
@@ -118,8 +126,23 @@ final class UniversalLinkManager {
         return didOpen ? .deny : .allow
     }
     
+    /// Lets the redirects of a link that arrived from another app open an app.
+    func allowRedirectHandoff(in session: GeckoSession) {
+        redirectHandoffSessions.insert(ObjectIdentifier(session))
+    }
+    
+    /// Opens a link that arrived from another app in the app that claims it. False when none does.
+    @MainActor
+    func openIncomingLink(_ url: URL) async -> Bool {
+        guard Prefs.BrowsingSettings.openLinksInExternalApps, URLUtils.isWebURL(url) else {
+            return false
+        }
+        return await open(url, universalLinksOnly: true)
+    }
+    
     func didCommitNavigation(in session: GeckoSession) {
         let sessionID = ObjectIdentifier(session)
+        redirectHandoffSessions.remove(sessionID)
         failedHandoffs = Set(failedHandoffs.filter { $0.session != sessionID })
     }
     

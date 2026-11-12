@@ -126,7 +126,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             if isWebApp {
                 browserViewController.openWebApp(resolvedURL)
             } else {
-                browserViewController.sidebarCoordinator.openExternalURL(resolvedURL)
+                Task { @MainActor in
+                    if await browserViewController.sessionManager.universalLinkManager.openIncomingLink(resolvedURL) {
+                        return
+                    }
+                    browserViewController.sidebarCoordinator.openExternalURL(resolvedURL)
+                }
             }
         }
     }
