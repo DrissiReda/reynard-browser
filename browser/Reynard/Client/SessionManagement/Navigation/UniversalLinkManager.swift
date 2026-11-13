@@ -66,9 +66,19 @@ final class UniversalLinkManager {
     ) async -> AllowOrDeny {
         guard
             Prefs.BrowsingSettings.openLinksInExternalApps,
-            !session.isPrivateMode,
             let url = URL(string: request.uri)
         else {
+            return .allow
+        }
+        
+        guard URLUtils.isWebURL(url) else {
+            guard await confirmOpen() else {
+                return .deny
+            }
+            return await open(url, universalLinksOnly: false) ? .deny : .allow
+        }
+        
+        guard !session.isPrivateMode else {
             return .allow
         }
         
@@ -165,6 +175,24 @@ final class UniversalLinkManager {
     }
     
     @MainActor
+    private func confirmOpen() async -> Bool {
+        return await withCheckedContinuation { continuation in
+            AlertPresenter.show(
+                title: NSLocalizedString("Open this page in another app?", comment: ""),
+                message: nil,
+                buttons: [
+                    AlertPresenter.Button(title: NSLocalizedString("Cancel", comment: ""), style: .cancel) {
+                        continuation.resume(returning: false)
+                    },
+                    AlertPresenter.Button(title: NSLocalizedString("Open", comment: "")) {
+                        continuation.resume(returning: true)
+                    },
+                ]
+            )
+        }
+    }
+    
+    @MainActor
     private func open(_ url: URL, universalLinksOnly: Bool) async -> Bool {
         let gate = OpenGate()
         let timeoutTask = Task { @MainActor in
@@ -181,7 +209,7 @@ final class UniversalLinkManager {
             }
             UIApplication.shared.open(
                 url,
-                options: universalLinksOnly ? [.universalLinksOnly: true] : [:],
+                options: [.universalLinksOnly: universalLinksOnly],
                 completionHandler: { success in
                     gate.finish(with: success)
                 }
