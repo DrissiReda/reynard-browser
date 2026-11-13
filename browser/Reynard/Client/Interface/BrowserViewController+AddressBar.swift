@@ -45,6 +45,7 @@ extension BrowserViewController: AddressBarDelegate, AddressBarGestureDelegate {
         )
         
         refreshAddressBarAudioButton()
+        refreshAppLinkBanner()
     }
     
     func refreshAddressBarAudioButton() {
