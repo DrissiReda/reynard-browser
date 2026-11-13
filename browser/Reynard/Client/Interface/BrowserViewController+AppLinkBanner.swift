@@ -122,7 +122,9 @@ final class AppLinkBanner: UIView {
 
 extension BrowserViewController {
     func configureAppLinkBanner() {
-        // The clip view grows from 0 to the banner height; the page below is pushed down with it.
+        // The clip view sits right above the page and grows with ContentView.topInset, so the
+        // banner comes in under the top chrome (status bar, top address bar or tab bar) and
+        // pushes the page down. The page's top is pinned to that chrome by a required constraint.
         let clip = appLinkBannerClip
         clip.translatesAutoresizingMaskIntoConstraints = false
         clip.clipsToBounds = true
@@ -133,14 +135,11 @@ extension BrowserViewController {
         NSLayoutConstraint.activate([
             clip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             clip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            clip.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor),
-            clip.topAnchor.constraint(greaterThanOrEqualTo: browserChrome.topToolbarBottomAnchor),
-            clip.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).withPriority(.defaultLow),
+            clip.bottomAnchor.constraint(equalTo: contentView.topAnchor),
             height,
             appLinkBanner.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
             appLinkBanner.trailingAnchor.constraint(equalTo: clip.trailingAnchor),
             appLinkBanner.bottomAnchor.constraint(equalTo: clip.bottomAnchor),
-            contentView.topAnchor.constraint(greaterThanOrEqualTo: clip.bottomAnchor),
         ])
         appLinkBanner.onOpen = { [weak self] in
             guard let self, let url = self.appLinkBannerURL.flatMap(URL.init(string:)) else { return }
@@ -185,11 +184,17 @@ extension BrowserViewController {
         }
     }
 
+    /// The banner is as tall as the room the page keeps for it (none in fullscreen or search).
+    func layoutAppLinkBanner() {
+        appLinkBannerHeight?.constant = contentView.appliedTopInset
+    }
+
     private func setAppLinkBannerVisible(_ visible: Bool, animated: Bool) {
         let target = visible ? AppLinkBanner.height : 0
-        guard appLinkBannerHeight?.constant != target else { return }
+        guard contentView.topInset != target else { return }
         view.layoutIfNeeded()
-        appLinkBannerHeight?.constant = target
+        contentView.topInset = target
+        layoutAppLinkBanner()
         guard animated, !UIAccessibility.isReduceMotionEnabled else {
             view.layoutIfNeeded()
             return
