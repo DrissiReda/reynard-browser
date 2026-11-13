@@ -49,8 +49,16 @@ final class UniversalLinkManager {
     
     private var handoffTasks: [HandoffKey: Task<Bool, Never>] = [:]
     private var failedHandoffs = Set<HandoffKey>()
-    // Sessions whose current navigation started from a tap or an incoming link, so its redirects may open an app.
-    private var redirectHandoffSessions = Set<ObjectIdentifier>()
+    // A navigation that started from a tap or an incoming link. Its redirects (HTTP or meta refresh)
+    // may open an app for 10 s, but never one for the site the chain started on: that app sent the link.
+    private struct HandoffChain {
+        let originDomain: String
+        let start: Date
+        var isActive: Bool { Date().timeIntervalSince(start) < 10 }
+    }
+    private var chains: [ObjectIdentifier: HandoffChain] = [:]
+    // Loop guard: last time Reynard opened an app for a web link.
+    private var lastHandoff: Date?
     
     func decideHandoff(
         for request: LoadRequest,
@@ -84,13 +92,19 @@ final class UniversalLinkManager {
                 return .allow
             }
         } else {
+            guard URLUtils.isWebURL(url), let destinationHost = url.host else {
+                return .allow
+            }
             let sessionID = ObjectIdentifier(session)
             if request.isUserInitiatedNavigation && !request.isRedirect {
-                redirectHandoffSessions.insert(sessionID)
+                let originHost = request.triggerUri.flatMap { URL(string: $0)?.host } ?? destinationHost
+                chains[sessionID] = HandoffChain(originDomain: Self.baseDomain(originHost), start: Date())
             }
-            let fromUser = request.isUserInitiatedNavigation
-                || (request.isRedirect && redirectHandoffSessions.contains(sessionID))
-            guard fromUser, URLUtils.isWebURL(url) else {
+            guard let chain = chains[sessionID], chain.isActive else {
+                return .allow
+            }
+            let destinationDomain = Self.baseDomain(destinationHost)
+            if destinationDomain == chain.originDomain {
                 return .allow
             }
         }
@@ -120,29 +134,37 @@ final class UniversalLinkManager {
         let didOpen = await task.value
         if didOpen {
             failedHandoffs.remove(key)
+            if !isCustomLink {
+                lastHandoff = Date()
+                chains.removeValue(forKey: ObjectIdentifier(session))
+            }
         } else {
             failedHandoffs.insert(key)
         }
         return didOpen ? .deny : .allow
     }
     
-    /// Lets the redirects of a link that arrived from another app open an app.
-    func allowRedirectHandoff(in session: GeckoSession) {
-        redirectHandoffSessions.insert(ObjectIdentifier(session))
+    /// A link from another app: iOS already chose not to open an app for it, so only its redirects
+    /// to another site may. Skipped right after Reynard opened an app, which may be bouncing back.
+    func allowRedirectHandoff(in session: GeckoSession, from url: URL) {
+        guard let host = url.host,
+              lastHandoff.map({ Date().timeIntervalSince($0) >= 10 }) ?? true else {
+            return
+        }
+        chains[ObjectIdentifier(session)] = HandoffChain(originDomain: Self.baseDomain(host), start: Date())
     }
     
-    /// Opens a link that arrived from another app in the app that claims it. False when none does.
-    @MainActor
-    func openIncomingLink(_ url: URL) async -> Bool {
-        guard Prefs.BrowsingSettings.openLinksInExternalApps, URLUtils.isWebURL(url) else {
-            return false
-        }
-        return await open(url, universalLinksOnly: true)
+    /// "shop.amazon.co.uk" -> "amazon.co.uk", "www.dealabs.com" -> "dealabs.com".
+    static func baseDomain(_ host: String) -> String {
+        let labels = host.lowercased().split(separator: ".")
+        guard labels.count > 2 else { return labels.joined(separator: ".") }
+        let secondLevel: Set<Substring> = ["co", "com", "org", "net", "gov", "ac", "edu", "ne", "or"]
+        let keep = secondLevel.contains(labels[labels.count - 2]) && labels[labels.count - 1].count == 2 ? 3 : 2
+        return labels.suffix(keep).joined(separator: ".")
     }
     
     func didCommitNavigation(in session: GeckoSession) {
         let sessionID = ObjectIdentifier(session)
-        redirectHandoffSessions.remove(sessionID)
         failedHandoffs = Set(failedHandoffs.filter { $0.session != sessionID })
     }
     

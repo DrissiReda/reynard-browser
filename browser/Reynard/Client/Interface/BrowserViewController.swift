@@ -51,6 +51,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     // MARK: - Views And Coordinators
     
     let tabOverview = TabOverview()
+    let appLinkBanner = AppLinkBanner()
+    var appLinkBannerURL: String?
+    var appLinkBannerDismissedHosts = Set<String>()
     let contentView = ContentView()
     lazy var browserChrome = BrowserChrome()
     var tabBar: TabBar { return browserChrome.tabBar }
@@ -353,6 +356,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
             tabOverview.topAnchor.constraint(equalTo: view.topAnchor),
             tabOverview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        configureAppLinkBanner()
     }
     
     private func configureBrowserChromeActions() {
