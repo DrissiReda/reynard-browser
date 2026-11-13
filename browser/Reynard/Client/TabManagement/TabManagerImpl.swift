@@ -1535,6 +1535,18 @@ extension TabManagerImplementation: NavigationDelegate {
         }
         
         sessionManager.universalLinkManager.didCommitNavigation(in: session)
+        if let committedURL = url.flatMap(URL.init(string:)) {
+            Task { @MainActor [weak self] in
+                guard let self,
+                      await self.sessionManager.universalLinkManager.handoffCommittedPage(committedURL, in: session) else {
+                    return
+                }
+                // The app has the page now; the tab returns to where the link was tapped.
+                if tab.state.navigationState.canGoBack {
+                    session.goBack(userInteraction: false)
+                }
+            }
+        }
         
         if let normalizedURL, !normalizedURL.isEmpty {
             tab.state.suppressInitialNavigation = false

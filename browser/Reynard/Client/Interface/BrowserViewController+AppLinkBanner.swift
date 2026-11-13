@@ -3,111 +3,147 @@
 //  Reynard
 //
 //  Safari-style "Open in the app" banner for pages an installed app claims as universal links.
+//  It sits edge to edge at the top of the page and pushes the page down, like Safari's.
 //
 
 import UIKit
 
-final class AppLinkBanner: UIVisualEffectView {
+final class AppLinkBanner: UIView {
+    static let height: CGFloat = 64
+
     var onOpen: (() -> Void)?
     var onClose: (() -> Void)?
 
+    private let iconView = UIImageView()
     private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let openButton = UIButton(type: .custom)
 
     init() {
-        super.init(effect: UIBlurEffect(style: .systemThinMaterial))
+        super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        layer.cornerRadius = 14
-        layer.cornerCurve = .continuous
-        clipsToBounds = true
-        isHidden = true
-        alpha = 0
 
-        let icon = UIImageView(image: UIImage(systemName: "arrow.up.forward.app.fill"))
-        icon.tintColor = .secondaryLabel
-        icon.setContentHuggingPriority(.required, for: .horizontal)
+        let background = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
+        background.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(background)
 
-        titleLabel.font = .preferredFont(forTextStyle: .subheadline)
-        titleLabel.adjustsFontForContentSizeCategory = true
+        let separator = UIView()
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.backgroundColor = .separator
+        addSubview(separator)
+
+        let closeButton = UIButton(type: .system)
+        closeButton.setImage(UIImage(systemName: "xmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)), for: .normal)
+        closeButton.tintColor = .tertiaryLabel
+        closeButton.accessibilityLabel = NSLocalizedString("Close", comment: "")
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+
+        iconView.contentMode = .scaleAspectFill
+        iconView.layer.cornerRadius = 9
+        iconView.layer.cornerCurve = .continuous
+        iconView.layer.borderWidth = 1 / UIScreen.main.scale
+        iconView.layer.borderColor = UIColor.separator.cgColor
+        iconView.clipsToBounds = true
+
+        titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         titleLabel.textColor = .label
-        titleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.font = .systemFont(ofSize: 13)
+        subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.text = NSLocalizedString("Open in the app", comment: "")
+        let labels = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        labels.axis = .vertical
+        labels.spacing = 1
 
-        let openButton = UIButton(type: .system)
-        openButton.setTitle(NSLocalizedString("Open", comment: ""), for: .normal)
-        openButton.titleLabel?.font = .preferredFont(forTextStyle: .subheadline).withBold()
-        openButton.setTitleColor(.white, for: .normal)
-        openButton.backgroundColor = .systemBlue
-        openButton.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+        openButton.setTitle(NSLocalizedString("OPEN", comment: ""), for: .normal)
+        openButton.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
+        openButton.setTitleColor(.systemBlue, for: .normal)
+        openButton.backgroundColor = .tertiarySystemFill
+        openButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
         openButton.layer.cornerRadius = 15
         openButton.layer.cornerCurve = .continuous
-        openButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
         openButton.addTarget(self, action: #selector(openTapped), for: .touchUpInside)
+        openButton.addTarget(self, action: #selector(openPressed), for: [.touchDown, .touchDragEnter])
+        openButton.addTarget(self, action: #selector(openReleased), for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         openButton.setContentHuggingPriority(.required, for: .horizontal)
         openButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-        
-        let closeButton = UIButton(type: .system)
-        closeButton.setImage(UIImage(systemName: "xmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)), for: .normal)
-        closeButton.tintColor = .secondaryLabel
-        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
-        closeButton.accessibilityLabel = NSLocalizedString("Close", comment: "")
-        closeButton.setContentHuggingPriority(.required, for: .horizontal)
-        closeButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        closeButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        
-        let stack = UIStackView(arrangedSubviews: [icon, titleLabel, openButton, closeButton])
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.alignment = .center
-        stack.spacing = 10
-        contentView.addSubview(stack)
+
+        let row = UIStackView(arrangedSubviews: [closeButton, iconView, labels, openButton])
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.alignment = .center
+        row.spacing = 10
+        row.setCustomSpacing(4, after: closeButton)
+        addSubview(row)
+
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -4),
-            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
-            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            background.topAnchor.constraint(equalTo: topAnchor),
+            background.bottomAnchor.constraint(equalTo: bottomAnchor),
+            background.leadingAnchor.constraint(equalTo: leadingAnchor),
+            background.trailingAnchor.constraint(equalTo: trailingAnchor),
+            separator.leadingAnchor.constraint(equalTo: leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: trailingAnchor),
+            separator.bottomAnchor.constraint(equalTo: bottomAnchor),
+            separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
+            heightAnchor.constraint(equalToConstant: Self.height),
+            row.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 4),
+            row.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            row.centerYAnchor.constraint(equalTo: centerYAnchor),
+            closeButton.widthAnchor.constraint(equalToConstant: 32),
+            closeButton.heightAnchor.constraint(equalToConstant: 44),
+            iconView.widthAnchor.constraint(equalToConstant: 40),
+            iconView.heightAnchor.constraint(equalToConstant: 40),
+            openButton.heightAnchor.constraint(equalToConstant: 30),
         ])
     }
 
-    @objc private func openTapped() { onOpen?() }
-    @objc private func closeTapped() { onClose?() }
-    
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func show(appName: String) {
-        titleLabel.text = String(format: NSLocalizedString("Open in the “%@” app", comment: ""), appName)
-        guard isHidden else { return }
-        isHidden = false
-        let reduceMotion = UIAccessibility.isReduceMotionEnabled
-        transform = reduceMotion ? .identity : CGAffineTransform(translationX: 0, y: -12)
-        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.9, initialSpringVelocity: 0, options: [.allowUserInteraction, .beginFromCurrentState]) {
-            self.alpha = 1
-            self.transform = .identity
-        }
+    func configure(appName: String, icon: UIImage?) {
+        titleLabel.text = appName
+        iconView.image = icon
+        iconView.isHidden = icon == nil
+        accessibilityLabel = String(format: NSLocalizedString("Open in the “%@” app", comment: ""), appName)
     }
 
-    func hide() {
-        guard !isHidden else { return }
-        UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState]) {
-            self.alpha = 0
-        } completion: { finished in
-            if finished && self.alpha == 0 { self.isHidden = true }
+    @objc private func openTapped() { onOpen?() }
+    @objc private func closeTapped() { onClose?() }
+    @objc private func openPressed() {
+        UIView.animate(withDuration: 0.1, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.openButton.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+        }
+    }
+    @objc private func openReleased() {
+        UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.openButton.transform = .identity
         }
     }
 }
 
 extension BrowserViewController {
     func configureAppLinkBanner() {
-        view.insertSubview(appLinkBanner, belowSubview: tabOverview)
+        // The clip view grows from 0 to the banner height; the page below is pushed down with it.
+        let clip = appLinkBannerClip
+        clip.translatesAutoresizingMaskIntoConstraints = false
+        clip.clipsToBounds = true
+        clip.addSubview(appLinkBanner)
+        view.insertSubview(clip, belowSubview: browserChrome)
+        let height = clip.heightAnchor.constraint(equalToConstant: 0)
+        appLinkBannerHeight = height
         NSLayoutConstraint.activate([
-            appLinkBanner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 10),
-            appLinkBanner.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -10),
-            appLinkBanner.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            appLinkBanner.topAnchor.constraint(greaterThanOrEqualTo: browserChrome.topToolbarBottomAnchor, constant: 8),
-            appLinkBanner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8).withPriority(.defaultLow),
+            clip.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            clip.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            clip.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor),
+            clip.topAnchor.constraint(greaterThanOrEqualTo: browserChrome.topToolbarBottomAnchor),
+            clip.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor).withPriority(.defaultLow),
+            height,
+            appLinkBanner.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+            appLinkBanner.trailingAnchor.constraint(equalTo: clip.trailingAnchor),
+            appLinkBanner.bottomAnchor.constraint(equalTo: clip.bottomAnchor),
+            contentView.topAnchor.constraint(greaterThanOrEqualTo: clip.bottomAnchor),
         ])
         appLinkBanner.onOpen = { [weak self] in
             guard let self, let url = self.appLinkBannerURL.flatMap(URL.init(string:)) else { return }
-            self.appLinkBanner.hide()
             UIApplication.shared.open(url, options: [.universalLinksOnly: true])
         }
         appLinkBanner.onClose = { [weak self] in
@@ -115,30 +151,53 @@ extension BrowserViewController {
             if let host = self.appLinkBannerURL.flatMap(URL.init(string:))?.host {
                 self.appLinkBannerDismissedHosts.insert(host)
             }
-            self.appLinkBanner.hide()
+            self.setAppLinkBannerVisible(false, animated: true)
         }
     }
 
-    /// Called with every address bar refresh; looks the page up once per URL.
+    /// Called with every address bar refresh. Looks a page up once; a reload or a load in
+    /// progress (no URL yet, about:blank) keeps the banner as it is.
     func refreshAppLinkBanner() {
-        let urlString = tabManager.selectedTab?.url
-        guard urlString != appLinkBannerURL else { return }
-        appLinkBannerURL = urlString
-        appLinkBanner.hide()
-        guard webAppID == nil, let urlString, let url = URL(string: urlString),
-              url.scheme == "http" || url.scheme == "https",
-              let host = url.host, !appLinkBannerDismissedHosts.contains(host) else {
+        guard let tab = tabManager.selectedTab else { return }
+        if tab.id != appLinkBannerTabID {
+            appLinkBannerTabID = tab.id
+            appLinkBannerURL = nil
+            setAppLinkBannerVisible(false, animated: false)
+        }
+        guard webAppID == nil, let urlString = tab.url, let url = URL(string: urlString),
+              url.scheme == "http" || url.scheme == "https", let host = url.host,
+              urlString != appLinkBannerURL else {
             return
         }
-        appLinkTargetName(url) { [weak self] name in
-            guard let self, let name, self.appLinkBannerURL == urlString else { return }
-            self.appLinkBanner.show(appName: name)
+        appLinkBannerURL = urlString
+        guard !appLinkBannerDismissedHosts.contains(host) else {
+            setAppLinkBannerVisible(false, animated: true)
+            return
+        }
+        appLinkTargetName(url) { [weak self] name, bundleID in
+            guard let self, self.appLinkBannerURL == urlString else { return }
+            if let name {
+                self.appLinkBanner.configure(appName: name, icon: bundleID.flatMap(appIconImage))
+                self.setAppLinkBannerVisible(true, animated: true)
+            } else {
+                self.setAppLinkBannerVisible(false, animated: true)
+            }
         }
     }
-}
 
-private extension UIFont {
-    func withBold() -> UIFont {
-        fontDescriptor.withSymbolicTraits(.traitBold).map { UIFont(descriptor: $0, size: 0) } ?? self
+    private func setAppLinkBannerVisible(_ visible: Bool, animated: Bool) {
+        let target = visible ? AppLinkBanner.height : 0
+        guard appLinkBannerHeight?.constant != target else { return }
+        view.layoutIfNeeded()
+        appLinkBannerHeight?.constant = target
+        guard animated, !UIAccessibility.isReduceMotionEnabled else {
+            view.layoutIfNeeded()
+            return
+        }
+        // Critically damped: the banner and the page move as one, no overshoot.
+        UIView.animate(withDuration: visible ? 0.4 : 0.3, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.view.layoutIfNeeded()
+        }
     }
 }

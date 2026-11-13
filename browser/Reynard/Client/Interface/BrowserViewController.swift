@@ -52,6 +52,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     
     let tabOverview = TabOverview()
     let appLinkBanner = AppLinkBanner()
+    let appLinkBannerClip = UIView()
+    var appLinkBannerHeight: NSLayoutConstraint?
+    var appLinkBannerTabID: UUID?
     var appLinkBannerURL: String?
     var appLinkBannerDismissedHosts = Set<String>()
     let contentView = ContentView()
