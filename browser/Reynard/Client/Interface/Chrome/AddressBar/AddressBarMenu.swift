@@ -110,7 +110,7 @@ enum AddressBarMenu {
         if #available(iOS 15.0, *), let url, url.host != nil, url.scheme == "http" || url.scheme == "https" {
             // Only shown when an installed app claims this page as a universal link.
             pageActions.append(UIDeferredMenuElement.uncached { completion in
-                appLinkTargetName(url) { name in
+                appLinkTargetName(url) { name, _ in
                     guard let name else { return completion([]) }
                     completion([UIAction(
                         title: String(format: NSLocalizedString("Open in %@", comment: ""), name),

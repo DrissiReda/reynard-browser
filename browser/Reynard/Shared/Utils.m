@@ -21,6 +21,10 @@
 + (void)getAppLinkWithURL:(NSURL *)url completionHandler:(void (^)(id link, NSError *error))completion;
 @end
 
+@interface UIImage (ReynardAppIcon)
++ (UIImage *)_applicationIconImageForBundleIdentifier:(NSString *)bundleID format:(int)format scale:(CGFloat)scale;
+@end
+
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT 6
 #define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
 
@@ -93,18 +97,25 @@ int spawnRoot(NSString *path, NSArray<NSString *> *args) {
     return WEXITSTATUS(status);
 }
 
-void appLinkTargetName(NSURL *url, void (^completion)(NSString * _Nullable name)) {
+void appLinkTargetName(NSURL *url, void (^completion)(NSString * _Nullable name, NSString * _Nullable bundleID)) {
     Class appLink = NSClassFromString(@"LSAppLink");
     if (![appLink respondsToSelector:@selector(getAppLinkWithURL:completionHandler:)]) {
-        completion(nil);
+        completion(nil, nil);
         return;
     }
     [appLink getAppLinkWithURL:url completionHandler:^(id link, NSError *error) {
-        NSString *name = nil;
+        NSString *name = nil, *bundleID = nil;
         @try {
-            id name_ = [[link valueForKey:@"targetApplicationProxy"] valueForKey:@"localizedName"];
+            id proxy = [link valueForKey:@"targetApplicationProxy"];
+            id name_ = [proxy valueForKey:@"localizedName"], bundle_ = [proxy valueForKey:@"bundleIdentifier"];
             if ([name_ isKindOfClass:NSString.class]) name = name_;
+            if ([bundle_ isKindOfClass:NSString.class]) bundleID = bundle_;
         } @catch (NSException *exception) {}
-        dispatch_async(dispatch_get_main_queue(), ^{ completion(name); });
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(name, bundleID); });
     }];
+}
+
+UIImage *appIconImage(NSString *bundleID) {
+    if (![UIImage respondsToSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:)]) return nil;
+    return [UIImage _applicationIconImageForBundleIdentifier:bundleID format:2 scale:UIScreen.mainScreen.scale];
 }

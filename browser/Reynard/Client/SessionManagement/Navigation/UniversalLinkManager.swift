@@ -54,6 +54,7 @@ final class UniversalLinkManager {
     private struct HandoffChain {
         let originDomain: String
         let start: Date
+        var tried = Set<String>()
         var isActive: Bool { Date().timeIntervalSince(start) < 10 }
     }
     private var chains: [ObjectIdentifier: HandoffChain] = [:]
@@ -152,6 +153,32 @@ final class UniversalLinkManager {
             return
         }
         chains[ObjectIdentifier(session)] = HandoffChain(originDomain: Self.baseDomain(host), start: Date())
+    }
+    
+    /// Gecko on iOS never reports HTTP redirects as load requests (only Android does), so a chain
+    /// started by a tap or an incoming link is checked again when a page from another site commits.
+    @MainActor
+    func handoffCommittedPage(_ url: URL, in session: GeckoSession) async -> Bool {
+        guard Prefs.BrowsingSettings.openLinksInExternalApps, !session.isPrivateMode,
+              URLUtils.isWebURL(url), let host = url.host else {
+            return false
+        }
+        let sessionID = ObjectIdentifier(session)
+        guard var chain = chains[sessionID], chain.isActive else {
+            return false
+        }
+        let domain = Self.baseDomain(host)
+        guard domain != chain.originDomain, !chain.tried.contains(domain) else {
+            return false
+        }
+        chain.tried.insert(domain)
+        chains[sessionID] = chain
+        guard await open(url, universalLinksOnly: true) else {
+            return false
+        }
+        lastHandoff = Date()
+        chains.removeValue(forKey: sessionID)
+        return true
     }
     
     /// "shop.amazon.co.uk" -> "amazon.co.uk", "www.dealabs.com" -> "dealabs.com".
