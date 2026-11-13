@@ -103,6 +103,13 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
     var onVerticalScroll: ((CGFloat, CGFloat) -> Void)?
     var onAppearanceChanged: (() -> Void)?
     
+    /// Room kept free above the page, for the app link banner. Only the standard layout
+    /// keeps it: no banner over fullscreen video or a focused search.
+    var topInset: CGFloat = 0 {
+        didSet { updateTopInset() }
+    }
+    var appliedTopInset: CGFloat { topConstraint?.constant ?? 0 }
+    
     private var topConstraint: NSLayoutConstraint?
     private var bottomConstraint: NSLayoutConstraint?
     private var webContentTopConstraint: NSLayoutConstraint?
@@ -352,9 +359,14 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
         NSLayoutConstraint.activate([nextTopConstraint, nextBottomConstraint])
         topConstraint = nextTopConstraint
         bottomConstraint = nextBottomConstraint
+        updateTopInset()
         updateLayoutOffsets()
         transform = focusedInputTransform
         updatePullToRefreshAvailability()
+    }
+    
+    private func updateTopInset() {
+        topConstraint?.constant = layoutState.mode == .standard ? topInset : 0
     }
     
     private func canActivateConstraints(_ constraints: [NSLayoutConstraint]) -> Bool {

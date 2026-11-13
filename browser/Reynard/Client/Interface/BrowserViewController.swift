@@ -627,6 +627,7 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
             }
         }
         
+        layoutAppLinkBanner()
         applyTabOverviewLayout()
         applyBrowserChromeLayout(animated: animated)
         updateNavigationButtons()
