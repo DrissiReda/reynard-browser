@@ -136,7 +136,10 @@ final class UpdatesSettingsSection {
                 of: "Reynard.ipa",
                 with: packageFileName
             )
-            let encodedPackageURLString = trollStorePackageURLString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ??
+            // Encode "&" and "=" too: the Redval share URL has its own query, which must stay inside url=.
+            var unreserved = CharacterSet.alphanumerics
+            unreserved.insert(charactersIn: "-._~")
+            let encodedPackageURLString = trollStorePackageURLString.addingPercentEncoding(withAllowedCharacters: unreserved) ??
             trollStorePackageURLString
             
             if let schemeURL = URL(string: "apple-magnifier://install?url=" + encodedPackageURLString),
