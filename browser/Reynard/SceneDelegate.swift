@@ -150,13 +150,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     /// Opens a link in the browser window, creating one when only web app windows are open.
+    /// iPhone cannot activate another scene (UISceneErrorDomain 0, "does not support multiple
+    /// scenes"): there Redval Tweaks routes outside links to the browser window in SpringBoard. A
+    /// link that still reaches a web app window loads in it rather than being dropped.
     private func forwardToBrowser(_ url: URL) {
         let browserSession = UIApplication.shared.openSessions.first {
             !$0.persistentIdentifier.hasPrefix("sceneID:com.apple.webapp-") && $0.role == .windowApplication
         }
         let activity = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
         activity.webpageURL = url
-        UIApplication.shared.requestSceneSessionActivation(browserSession, userActivity: activity, options: nil)
+        UIApplication.shared.requestSceneSessionActivation(browserSession, userActivity: activity, options: nil) { [weak self] _ in
+            DispatchQueue.main.async {
+                (self?.window?.rootViewController as? BrowserViewController)?.loadInWebApp(url)
+            }
+        }
     }
 
     private func resolvedBrowserURL(from incomingURL: URL) -> URL? {
