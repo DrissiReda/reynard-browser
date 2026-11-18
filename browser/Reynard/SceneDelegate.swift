@@ -19,11 +19,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         let webAppPrefix = "sceneID:com.apple.webapp-"
         let browserViewController: BrowserViewController
-        if session.persistentIdentifier.hasPrefix(webAppPrefix) {
-            let clipID = String(session.persistentIdentifier.dropFirst(webAppPrefix.count))
-            let launchURL = connectionOptions.urlContexts
-                .compactMap { resolvedBrowserURL(from: $0.url) }
-                .first { $0.scheme?.lowercased() == "https" }
+        let clipID = String(session.persistentIdentifier.dropFirst(webAppPrefix.count))
+        let launchURL = connectionOptions.urlContexts
+            .compactMap { resolvedBrowserURL(from: $0.url) }
+            .first { $0.scheme?.lowercased() == "https" }
+        // A web app window SpringBoard kept after its web app info is gone (app reinstalled, data
+        // cleared) has nothing to show: it opens as a browser window.
+        if session.persistentIdentifier.hasPrefix(webAppPrefix), WebApps.info(clipID).url != nil || launchURL != nil {
             isWebAppScene = true
             // iOS may also (re)connect a web app window for an unrelated link: the window still
             // starts on its own page and the link goes to the browser.
