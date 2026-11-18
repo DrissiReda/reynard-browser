@@ -28,6 +28,9 @@ final class BrowserViewController: UIViewController, GeckoScreenOrientationDeleg
     /// Home screen web app scene (own cookies, no tab persistence), else nil.
     let webAppID: String?
     let webAppStartURL: URL?
+    /// Browser scene only: the tab each web app (by start URL) opened in, so a relaunch of the
+    /// web app returns to that tab and not to some other tab of the same site.
+    var webAppTabIDs: [String: UUID] = [:]
     var webAppSplash: UIView?
     lazy var tabManager = TabManagerImplementation(
         delegate: self,

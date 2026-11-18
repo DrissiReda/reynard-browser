@@ -16,13 +16,19 @@ import Darwin
 extension BrowserViewController {
     /// Opens a web app launched from its home screen web clip.
     func openWebApp(_ url: URL) {
-        let host = url.host
-        if let index = tabManager.regularTabs.firstIndex(where: { $0.url.flatMap(URL.init(string:))?.host == host }) {
+        if let id = webAppTabIDs[url.absoluteString],
+           let index = tabManager.regularTabs.firstIndex(where: { $0.id == id }) {
             tabManager.selectTab(at: index, mode: .regular)
         } else {
-            sidebarCoordinator.openExternalURL(url)
+            webAppTabIDs[url.absoluteString] = tabManager.openExternalURL(url)?.id
         }
         isStandalone = true
+    }
+
+    /// Whether a link opened from outside belongs to this web app window (same site as its start URL).
+    func webAppOwns(_ url: URL) -> Bool {
+        guard let host = webAppStartURL?.host?.lowercased() else { return false }
+        return url.host?.lowercased() == host
     }
 
     /// Standalone web app: its single tab, recreated if ever closed.

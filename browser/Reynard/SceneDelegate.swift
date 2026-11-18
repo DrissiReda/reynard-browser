@@ -42,7 +42,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         if !isWebAppScene {
             handleIncomingURLContexts(connectionOptions.urlContexts)
+            // A link a web app window passed on (see forwardToBrowser).
+            if let url = connectionOptions.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb })?.webpageURL {
+                handleIncomingURL(url)
+            }
         }
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        guard !isWebAppScene, userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+              let url = userActivity.webpageURL else { return }
+        handleIncomingURL(url)
     }
     
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -103,9 +113,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
         if isWebAppScene {
-            if let url = resolvedBrowserURL(from: incomingURL),
-               let bvc = window?.rootViewController as? BrowserViewController {
+            guard let url = resolvedBrowserURL(from: incomingURL),
+                  let bvc = window?.rootViewController as? BrowserViewController else { return }
+            // iOS hands a link to the last active Reynard window, which may be a web app.
+            // Only the web app's own site stays here; anything else goes to the browser.
+            if bvc.webAppOwns(url) {
                 bvc.loadInWebApp(url)
+            } else {
+                forwardToBrowser(url)
             }
             return
         }
@@ -131,6 +146,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
     
+    /// Opens a link in the browser window, creating one when only web app windows are open.
+    private func forwardToBrowser(_ url: URL) {
+        let browserSession = UIApplication.shared.openSessions.first {
+            !$0.persistentIdentifier.hasPrefix("sceneID:com.apple.webapp-") && $0.role == .windowApplication
+        }
+        let activity = NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
+        activity.webpageURL = url
+        UIApplication.shared.requestSceneSessionActivation(browserSession, userActivity: activity, options: nil)
+    }
+
     private func resolvedBrowserURL(from incomingURL: URL) -> URL? {
         guard let scheme = incomingURL.scheme?.lowercased() else {
             return nil
