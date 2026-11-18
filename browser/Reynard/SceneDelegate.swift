@@ -25,10 +25,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 .compactMap { resolvedBrowserURL(from: $0.url) }
                 .first { $0.scheme?.lowercased() == "https" }
             isWebAppScene = true
-            browserViewController = BrowserViewController(
-                webAppID: clipID,
-                startURL: launchURL ?? WebApps.info(clipID).url
-            )
+            // iOS may also (re)connect a web app window for an unrelated link: the window still
+            // starts on its own page and the link goes to the browser.
+            let startURL = WebApps.info(clipID).url ?? launchURL
+            if let launchURL, let startURL, WebApps.normalize(launchURL) != WebApps.normalize(startURL) {
+                DispatchQueue.main.async { self.forwardToBrowser(launchURL) }
+            }
+            browserViewController = BrowserViewController(webAppID: clipID, startURL: startURL)
         } else {
             browserViewController = BrowserViewController()
         }
@@ -116,7 +119,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             guard let url = resolvedBrowserURL(from: incomingURL),
                   let bvc = window?.rootViewController as? BrowserViewController else { return }
             // iOS hands a link to the last active Reynard window, which may be a web app.
-            // Only the web app's own site stays here; anything else goes to the browser.
+            // Only the web app's own launch stays here; anything else goes to the browser.
             if bvc.webAppOwns(url) {
                 bvc.loadInWebApp(url)
             } else {

@@ -25,10 +25,11 @@ extension BrowserViewController {
         isStandalone = true
     }
 
-    /// Whether a link opened from outside belongs to this web app window (same site as its start URL).
+    /// Whether a URL opened from outside is this web app's own launch (its start URL). Like
+    /// Safari web apps, a web app window never takes other links, even from the same site.
     func webAppOwns(_ url: URL) -> Bool {
-        guard let host = webAppStartURL?.host?.lowercased() else { return false }
-        return url.host?.lowercased() == host
+        guard let start = webAppStartURL else { return false }
+        return WebApps.normalize(url) == WebApps.normalize(start)
     }
 
     /// Standalone web app: its single tab, recreated if ever closed.
@@ -159,7 +160,7 @@ enum WebApps {
         return Info(url: d["url"].flatMap(URL.init(string:)), name: d["name"] ?? "",
                     background: d["background"], theme: d["theme"])
     }
-    private static func normalize(_ url: URL) -> String {
+    static func normalize(_ url: URL) -> String {
         var s = url.absoluteString
         if s.hasSuffix("/") { s.removeLast() }
         return s
